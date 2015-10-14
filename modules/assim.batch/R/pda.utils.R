@@ -9,7 +9,7 @@
 ##' @export
 assim.batch <- function(settings) {
   # Quit if pda not requested in settings
-  if(!('assim.batch' %in% names(settings))) {
+  if(!('assim.batch' %in% names(settings)) || settings$assim.batch$iter<=0) {
     return(settings)
   }
   require(coda)
@@ -27,87 +27,6 @@ assim.batch <- function(settings) {
   }
     
   return(settings)
-}
-
-
-##' Load Dataset for Paramater Data Assimilation
-##'
-##' @title Load Dataset for Paramater Data Assimilation
-##' @param input.settings = settings$assim.batch$inputs from pecan.xml or similar
-##'
-##' @return A list containg the loaded input data, plus metadata
-##'
-##' @author Ryan Kelly
-##' @export
-load.pda.data <- function(input.settings, con) {
-  ## load data
-  # Outlining setup for multiple datasets, although for now the only option is to assimilate 
-  # against a single NEE input
-  inputs <- list()
-  n.input <- length(input.settings)
-
-  for(i in 1:n.input) {
-    inputs[[i]] <- list()
-    inputs[[i]]$variable.id <- input.settings[[i]]$data.model$variable.id
-
-    ## Load input based on ID, PATH, or SOURCE
-    if(!is.null(input.settings[[i]]$id)) {             # Input specified by ID
-      ## Get file path from input id
-      inputs[[i]]$input.id <- input.settings[[i]]$id
-      file <- db.query(paste0('SELECT * FROM dbfiles WHERE container_id = ', input.settings[[i]]$id), con)
-      input.settings[[i]]$path <- file.path(file$file_path, file$file_name)
-    } else if(!is.null(input.settings[[i]]$path)) {    # Input specified by PATH
-      inputs[[i]]$input.id <- -1
-    } else if(!is.null(input.settings[[i]]$source)) {  # Input specified by SOURCE
-      # TODO: insert code to extract data from standard sources (e.g. AMF)
-    } else {
-      logger.error("Must provide ID, PATH, or SOURCE for all data assimilation inputs")
-    }
-      
-
-    ## Preprocess data
-    # TODO: Generalize
-    if(as.numeric(inputs[[i]]$variable.id) == 297) {
-      # Need to have two cases now--proper L4 data, or Ustar-screened L2. Defaulting to L4 for backwards compatibility. For future, obviously the $format tag should be populated from inputs table in bety.
-      if(is.null(input.settings[[i]]$format)) input.settings[[i]]$format <- 'Ameriflux.L4'
-      if(input.settings[[i]]$format == 'Ameriflux.L4') {
-        # Load L4 from a csv
-        inputs[[i]]$data <- read.csv(input.settings[[i]]$path)
-        
-        ## calculate flux uncertainty parameters
-        NEEo <- inputs[[i]]$data$NEE_or_fMDS #data$Fc   #umolCO2 m-2 s-1
-        NEEq <- inputs[[i]]$data$NEE_or_fMDSqc #data$qf_Fc
-        NEEo[NEEq > 0] <- NA
-        dTa <- get.change(inputs[[i]]$data$Ta_f)
-        flags <- dTa < 3   ## filter data to temperature differences that are less than 3 degrees
-      } else if(input.settings[[i]]$format == 'Ameriflux.L2') {
-        # Load L2 from netcdf
-        ustar.thresh <- 0.2 # TODO: soft code this
-
-        inputs[[i]]$data <- load.L2Ameriflux.cf(input.settings[[i]]$path)
-
-        NEEo <- inputs[[i]]$data$NEE
-        UST <- inputs[[i]]$data$UST
-        NEEo[NEEo == -9999] <- NA
-        NEEo[UST < ustar.thresh] <- NA
-        
-        # Have to just pretend like these quality control variables exist...
-        NEEq <- rep(0, length(NEEo))
-        flags <- TRUE
-      } else {
-        logger.severe(paste0("Unknown data type ", input.settings[[i]]$format, " for variable ID ", inputs[[i]]$variable.id))
-      }
-
-      NEE.params <- flux.uncertainty(NEEo,NEEq,flags,bin.num=20)
-      
-      inputs[[i]]$NEEo <- NEEo
-      inputs[[i]]$b0 <- NEE.params$intercept
-      inputs[[i]]$bp <- NEE.params$slopeP
-      inputs[[i]]$bn <- NEE.params$slopeN
-    }
-  } # end loop over files
-  
-  return(inputs)
 }
 
 
@@ -388,54 +307,6 @@ pda.define.prior.fn <- function(prior) {
 }
 
 
-##' Define PDA Likelihood Functions
-##'
-##' @title Define PDA Likelihood Functions
-##' @param all params are the identically named variables in pda.mcmc / pda.emulator
-##'
-##' @return List of likelihood functions, one for each dataset to be assimilated against.
-##'
-##' @author Ryan Kelly
-##' @export
-pda.define.llik.fn <- function(settings) {
-  # *** TODO: Generalize!
-  # Currently just returns a single likelihood, assuming the data are flux NEE.
-  llik.fn <- list()
-  for(i in 1:length(settings$assim.batch$input)) {
-    llik.fn[[i]] <- function(NEEm, obs) {
-#       NEEo <- obs$data$NEE_or_fMDS #data$Fc   #umolCO2 m-2 s-1
-#       NEEq <- obs$data$NEE_or_fMDSqc #data$qf_Fc
-#       NEEo[NEEq > 1] <- NA
-    
-      NEE.resid <- abs(NEEm - obs$NEEo)
-      NEE.pos <- (NEEm >= 0)
-      LL <- c(dexp(NEE.resid[NEE.pos], 1/(obs$b0 + obs$bp*NEEm[NEE.pos]), log=TRUE), 
-              dexp(NEE.resid[!NEE.pos],1/(obs$b0 + obs$bn*NEEm[!NEE.pos]),log=TRUE))
-#       NEE.pos <- (NEEo >= 0)
-#       LL <- c(dexp(NEE.resid[NEE.pos], 1/(obs$b0 + obs$bp*NEEo[NEE.pos]), log=TRUE), 
-#               dexp(NEE.resid[!NEE.pos],1/(obs$b0 + obs$bn*NEEo[!NEE.pos]),log=TRUE))
-      return(list(LL=sum(LL,na.rm=TRUE), n=sum(!is.na(LL))))
-    }
-
-#     llik.fn[[i]] <- function(model, obs) {
-#       NEEo <- obs$data$NEE_or_fMDS #data$Fc   #umolCO2 m-2 s-1
-#       NEEq <- obs$data$NEE_or_fMDSqc #data$qf_Fc
-#       NEEo[NEEq > 1] <- NA
-#     
-#       NEEm <- model
-#     
-#       NEE.resid <- NEEm - NEEo
-#       LL <- dnorm(NEE.resid, 0, 1, log=TRUE)
-#       n.obs = sum(!is.na(LL))
-#       return(list(LL=sum(LL,na.rm=TRUE), n=n.obs))
-#     }
-
-  }
-
-  return(llik.fn)
-}
-
-
 ##' Initialise Parameter Matrix for PDA
 ##'
 ##' @title Initialise Parameter Matrix for PDA
@@ -584,7 +455,7 @@ pda.adjust.jumps <- function(settings, accept.rate, pnames=NULL) {
 }
 
 
-##' Adjust PDA blcok MCMC jump size
+##' Adjust PDA block MCMC jump size
 ##'
 ##' @title Adjust PDA block MCMC jump size
 ##' @param all params are the identically named variables in pda.mcmc / pda.emulator
@@ -623,49 +494,6 @@ pda.adjust.jumps.bs <- function(settings, jcov, accept.count, params.recent) {
   logger.info(paste0("New jump variance diagonals are (", 
                     paste(round(diag(jcov),3), collapse=", "), ")"))
   return(jcov)
-}
-
-##' Get Model Output for PDA
-##'
-##' @title Get Model Output for PDA
-##' @param all params are the identically named variables in pda.mcmc / pda.emulator
-##'
-##' @return A list containing model outputs extracted to correspond to each observational
-##'         dataset being used for PDA. 
-##'
-##' @author Ryan Kelly
-##' @export
-pda.get.model.output <- function(settings, run.id, inputs) {
-  # TODO: Generalize to multiple outputs and outputs other than NEE
-
-  # Placeholder code to remind us that this function should eventually deal with assimilating
-  # multiple variables. If so, look at the list of PDA inputs to determine which corresponding
-  # model outputs to grab.
-  input.info <- settings$assim.batch$inputs
-
-  
-  model.out <- list()
-  n.input <- length(inputs)
-  for(k in 1:n.input){
-    NEEm <- read.output(run.id, outdir = file.path(settings$run$host$outdir, run.id),
-                        strftime(settings$run$start.date,"%Y"), 
-                        strftime(settings$run$end.date,"%Y"), 
-                        variables="NEE")$NEE*0.0002640674
-
-    if(length(NEEm) == 0) {   # Probably indicates model failed entirely
-      return(NA)
-    }
-      
-    ## match model and observations
-    NEEm <- rep(NEEm,each= nrow(inputs[[k]]$data)/length(NEEm))
-    set <- 1:length(NEEm)  ## ***** need a more intellegent year matching!!!
-      # NPPm <- rep(NPPm,each=length(NPPo)/length(NPPm))
-      # set <- 1:length(NPPm) 
-
-    model.out[[k]] <- NEEm[set]
-  }
-  
-  return(model.out)
 }
 
 

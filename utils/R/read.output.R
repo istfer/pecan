@@ -90,41 +90,82 @@ model2netcdf <- function(runid, outdir, model, lat, lon, start_date, end_date){
 ##' @param variables variables to be read from model output
 ##' @return vector of output variable
 ##' @export
-##' @author Michael Dietze, David LeBauer
+##' @author Michael Dietze, David LeBauer, Ryan Kelly
 read.output <- function(runid, outdir, start.year=NA,
                         end.year=NA, variables = "GPP") {
+
+  if(FALSE) {
+    runid=run.id; outdir=file.path(outdir, run.id); variables=variable
+  }
 
   ## vars in units s-1 to be converted to y-1
   cflux = c("GPP", "NPP", "NEE", "TotalResp", "AutoResp", "HeteroResp",
     "DOC_flux", "Fire_flux") # kgC m-2 d-1
   wflux = c("Evap", "TVeg", "Qs", "Qsb", "Rainf") # kgH20 m-2 d-1
+
+
+  # Check if looking for an ED2 cohort variable. These must be handled differently from the usual vars stored in netcdf by model2netcdf.*. 
   
-  # create list of *.nc years
-  nc.years <- as.vector(unlist(strsplit(list.files(path = outdir, pattern="\\.nc$", full.names=FALSE),".nc")))
-  # select only those *.nc years requested by user
-  keep <- which(nc.years >= as.numeric(start.year) & nc.years <= as.numeric(end.year))
-  ncfiles <- list.files(path = outdir, pattern="\\.nc$", full.names=TRUE)
-  ncfiles <- ncfiles[keep]
-  # throw error if no *.nc files selected/availible
-  if(length(ncfiles) == 0) logger.error("no netCDF files of model output present")
-  
-  print(paste("Years: ",start.year," - ",end.year),sep="")
-  result <- list()
-  for(ncfile in ncfiles) {
-    nc <- nc_open(ncfile)
-    for(v in variables){
-      if(v %in% c(names(nc$var),names(nc$dim))){
-        newresult <- ncvar_get(nc, v)
-        if(v %in% c(cflux, wflux)){
-          newresult <- ud.convert(newresult, "kg m-2 s-1", "kg ha-1 yr-1")
+  ed2ind <- grep("ED2\\.", variables)
+  if(length(ed2ind) > 0) {
+      variables <- sub("ED2\\.", "", variables[ed2ind])
+      
+
+    # Extract the variable of interest, as well as NPLANT. Relies on a helper function meant for binning cohort level variables. The binning is superfluous here, as we're going to average over all sizes and PFTs. But that code saves us time here by collecting data from all output files, etc. It can also extract NPLANT in the process. 
+    # Here, we aggregate into an arbitrarily large DBH bin (i.e., 0-Infinity cm), so the result will simply be the plant-density-weighted mean of the variable, by PFT. All that's left then is to average across PFTs, again weighting by NPLANT
+    vars <- union("NPLANT", variables) # Extract NPLANT + variable of interest
+    dbh.breaks <- 0 # Will represent a single DBH bin from 0 - Infinity cm
+    pfts <- 1:20 # There are actually only 19 PFTs in ED currently, but this futureproofing won't hurt
+    yrs <- start.year:end.year
+    ed.dat <- ed.cohort.bin.PFT.DBH.YR(outdir, vars, dbh.breaks, pfts, yrs)
+    
+    # To conform with default usage (below), the result should be a list with one component for each variable. For each variable, results from all years are then abind()-ed together as they are read in. 
+    result <- list()
+    for(varname in variables) {
+      # varname, yrs, pfts, and dbh.breaks should all be the same as they were for the inputs to ed.cohort.bin.PFT.DBH.YR. However, in case something went wrong (e.g. files didn't exist for some year?) check them all here.
+      if(varname %in% names(ed.dat)) {
+        dat = ed.dat[[varname]]
+        yrs.dat = dimnames(dat)[[1]]
+        dbh.breaks.dat = dimnames(dat)[[2]]
+        pfts.dat = dimnames(dat)[[3]]
+        
+        for(i in 1:length(yrs.dat)) {
+          result[[varname]] <- abind(result[[varname]], dat[yrs.dat[i],,])
         }
-        result[[v]] <- abind(result[[v]], newresult)
-      } else if (!(v %in% names(nc$var))){
-        logger.warn(paste(v, "missing in", ncfile))
+      } else {
+        logger.warn(paste0("Variable ", varname, "not found in ED2 output."))
       }
     }
-    nc_close(nc)
-  }
+
+  } else {
+  # Proceed as normal for a model2netcdf.* variable.
+    # create list of *.nc years
+    nc.years <- as.vector(unlist(strsplit(list.files(path = outdir, pattern="\\.nc$", full.names=FALSE),".nc")))
+    # select only those *.nc years requested by user
+    keep <- which(nc.years >= as.numeric(start.year) & nc.years <= as.numeric(end.year))
+    ncfiles <- list.files(path = outdir, pattern="\\.nc$", full.names=TRUE)
+    ncfiles <- ncfiles[keep]
+    # throw error if no *.nc files selected/availible
+    if(length(ncfiles) == 0) logger.error("no netCDF files of model output present")
+  
+    print(paste("Years: ",start.year," - ",end.year),sep="")
+    result <- list()
+    for(ncfile in ncfiles) {
+      nc <- nc_open(ncfile)
+      for(v in variables){
+        if(v %in% c(names(nc$var),names(nc$dim))){
+          newresult <- ncvar_get(nc, v)
+          if(v %in% c(cflux, wflux)){
+            newresult <- ud.convert(newresult, "kg m-2 s-1", "kg ha-1 yr-1")
+          }
+          result[[v]] <- abind(result[[v]], newresult)
+        } else if (!(v %in% names(nc$var))){
+          logger.warn(paste(v, "missing in", ncfile))
+        }
+      }
+      nc_close(nc)
+    }
+  }  
   
   print(paste("----- Mean ", variables, " : ",
               lapply(result, mean, na.rm = TRUE)))
