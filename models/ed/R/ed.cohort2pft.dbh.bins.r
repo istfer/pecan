@@ -76,15 +76,15 @@ ed.cohort.bin.PFT.DBH.YR <- function(ed.path, varnames, dbh.breaks, pfts, yrs) {
   }
 
 
+  ndbh <- length(dbh.breaks)
+  npft <- length(pfts)
+
   out <- list()
   for(varname in varnames) {
     out[[varname]] <- array(NA, c(nt, ndbh, npft))
   }
   
   # Aggregate over PFT and DBH bins  
-  ndbh <- length(dbh.breaks)
-  npft <- length(pfts)
-
   i=j=1; k=2 
   for(i in 1:nt) {
     # Get additional cohort-level variables required

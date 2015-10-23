@@ -104,8 +104,7 @@ read.output <- function(runid, outdir, start.year=NA,
   wflux = c("Evap", "TVeg", "Qs", "Qsb", "Rainf") # kgH20 m-2 d-1
 
 
-  # Check if looking for an ED2 cohort variable. These must be handled differently from the usual vars stored in netcdf by model2netcdf.*. 
-  
+  # Check if looking for an ED2 cohort variable. These must be handled differently from the usual vars stored in netcdf by model2netcdf.*.  
   ed2ind <- grep("ED2\\.", variables)
   if(length(ed2ind) > 0) {
       variables <- sub("ED2\\.", "", variables[ed2ind])

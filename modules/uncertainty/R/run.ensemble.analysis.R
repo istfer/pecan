@@ -80,7 +80,6 @@ run.ensemble.analysis <- function(plot.timeseries=NA, ensemble.id=NULL,
     ensemble.id=ensemble.id, variable=variable, start.year=start.year, end.year=end.year)
   load(fname)
 
-  
   ### ------------------- Start ensemble analysis -------------------
   ensemble.results <- list()
   if (is.null(settings$run$site$name)){
@@ -92,7 +91,6 @@ run.ensemble.analysis <- function(plot.timeseries=NA, ensemble.id=NULL,
   ## Generate ensemble figure
   fname <- ensemble.filename(settings, "ensemble.analysis", "pdf", all.var.yr=FALSE,
     ensemble.id=ensemble.id, variable=variable, start.year=start.year, end.year=end.year)
-  
   pdf(file=fname,width=13,height=6)
   par(mfrow=c(1,2),mar=c(4,4.8,1,2.0)) # B, L, T, R
 
