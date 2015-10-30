@@ -116,6 +116,7 @@ read.output <- function(runid, outdir, start.year=NA,
     dbh.breaks <- 0 # Will represent a single DBH bin from 0 - Infinity cm
     pfts <- 1:20 # There are actually only 19 PFTs in ED currently, but this futureproofing won't hurt
     yrs <- start.year:end.year
+
     ed.dat <- ed.cohort.bin.PFT.DBH.YR(outdir, vars, dbh.breaks, pfts, yrs)
     
     # To conform with default usage (below), the result should be a list with one component for each variable. For each variable, results from all years are then abind()-ed together as they are read in. 

@@ -1,5 +1,5 @@
 ed.cohort.bin.PFT.DBH.YR <- function(ed.path, varnames, dbh.breaks, pfts, yrs) {
-  require(hdf5)
+  require(ncdf4)
 
   if(FALSE) varnames=c("DDBH", "MMEAN_MORT_RATE_CO", "NPLANT")
 
@@ -50,28 +50,31 @@ ed.cohort.bin.PFT.DBH.YR <- function(ed.path, varnames, dbh.breaks, pfts, yrs) {
     ed.dat <- list()
 
     for(i in 1:nt){
-      outi <- hdf5load(flist[i],load=FALSE)
-        if(!is.null(vars)) outi <- outi[ names(outi) %in% vars ]
+        nc <- nc_open(flist[i])
+        ls.i <- names(nc$var)
+          if(!is.null(vars)) ls.i <- ls.i[ ls.i %in% vars ]
+
       if(length(ed.dat) == 0){
-        for(j in 1:length(outi)){
+        for(j in 1:length(ls.i)){
           ed.dat[[j]] <- list()
-          ed.dat[[j]][[1]] <- outi[[j]]        
+          ed.dat[[j]][[1]] <- ncvar_get(nc,ls.i[j])
         }
-        names(ed.dat) <- names(outi)
+        names(ed.dat) <- ls.i
       } else {
         t <- length(ed.dat[[1]]) + 1
-        for(j in 1:length(outi)){
-          k <- which(names(ed.dat) == names(outi)[j])
+        for(j in 1:length(ls.i)){
+          k <- which(names(ed.dat) == ls.i[j])
           if(length(k)>0){
-            ed.dat[[k]][[t]] <- outi[[j]]
+            ed.dat[[k]][[t]] <- ncvar_get(nc,ls.i[j])
           } else { ## add a new outiable. ***Not checked (shouldn't come up?)
             ed.dat[[length(ed.dat)+1]] <- list()    # Add space for new outiable
             ed.dat[[length(ed.dat)]][1:(t-1)] <- NA # Give NA for all previous time points
-            ed.dat[[length(ed.dat)]][t] <- outi[[j]] # Assign the value of the new outiable at this time point
-            names(ed.dat)[length(ed.dat)] <- names(outi)[j]
+            ed.dat[[length(ed.dat)]][t] <- ncvar_get(nc,ls.i[j]) # Assign the value of the new outiable at this time point
+            names(ed.dat)[length(ed.dat)] <- ls.i[j]
           }
         }      
       }
+      nc_close(nc)
     }
   }
 
