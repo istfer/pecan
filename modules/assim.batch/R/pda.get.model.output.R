@@ -38,7 +38,7 @@ pda.get.model.output <- function(settings, run.id, inputs) {
       dbh.breaks <- inputs[[k]]$dbh.breaks
       pfts       <- inputs[[k]]$pfts
       
-      ed.path     <- file.path(settings$run$host$outdir, run.id);
+      ed.path     <- file.path(settings$modeloutdir, run.id);
         yrs <- strftime(settings$run$start.date,"%Y"):strftime(settings$run$end.date,"%Y")
 
       if(settings$assim.batch$inputs[[k]]$variable.id  == 1000000008) { 

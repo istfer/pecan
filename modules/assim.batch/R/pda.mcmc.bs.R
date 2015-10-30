@@ -109,8 +109,9 @@ pda.mcmc.bs <- function(settings, params.id=NULL, param.names=NULL, prior.id=NUL
       0.1 * diff(eval(prior.fn$qprior[[prior.ind[ind[i]]]], list(p=c(0.05,0.95))))
   }
 
-  ## Convert jvar into a covariance matrix for block sampling
-  jcov = diag( unlist(settings$assim.batch$jump$jvar) )
+  ## Convert jvar into a covariance matrix for block sampling. Weirdly, have to specify size in case jvar.diag has only one element. 
+  jvar.diag <- unlist(settings$assim.batch$jump$jvar)
+  jcov <- diag( jvar.diag, nrow=length(jvar.diag) )
 
   ## Create dir for diagnostic output
   if(!is.null(settings$assim.batch$diag.plot.iter)) {

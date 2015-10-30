@@ -40,7 +40,7 @@ ed.cohort.bin.PFT.DBH.YR <- function(ed.path, varnames, dbh.breaks, pfts, yrs) {
     yrs.ed <- yrs.ed[ind]
       
     nt <- length(times)
-    nyr <- length(years)
+    nyr <- length(yrs)
 
 
   # Get the model outputs
