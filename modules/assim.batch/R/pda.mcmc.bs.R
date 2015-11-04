@@ -130,7 +130,7 @@ pda.mcmc.bs <- function(settings, params.id=NULL, param.names=NULL, prior.id=NUL
     ## Adjust Jump distribution
     if((i > (start + 1)) && ((i - start) %% settings$assim.batch$jump$adapt == 0)){
       jcov <- pda.adjust.jumps.bs(settings, jcov, accept.count, 
-                params[(i - settings$assim.batch$jump$adapt):(i-1), prior.ind])
+                params[(i - settings$assim.batch$jump$adapt):(i-1), prior.ind, drop=F])
       accept.count <- 0 # Reset counter
 
       # Save updated settings XML. Will be overwritten at end, but useful in case of crash

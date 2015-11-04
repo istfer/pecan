@@ -487,7 +487,7 @@ pda.adjust.jumps.bs <- function(settings, jcov, accept.count, params.recent) {
     arate <- accept.count / settings$assim.batch$jump$adapt
     adjust <- max(arate / settings$assim.batch$jump$ar.target, settings$assim.batch$jump$adj.min)
 
-    rescale <- diag(stdev * adjust)
+    rescale <- diag(stdev * adjust, nrow=length(stdev * adjust))
     jcov <- rescale %*% corr %*% rescale
   }
 
