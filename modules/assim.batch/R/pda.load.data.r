@@ -98,6 +98,7 @@ load.pda.data <- function(settings, con) {
           logger.severe(paste0("Unknown data type ", input.settings[[i]]$format, " for variable ID ", inputs[[i]]$variable.id))
         }
       } else if(as.numeric(inputs[[i]]$variable.id) == 1000000009) {
+      # Mortality
         indat <- readRDS(input.settings[[i]]$path)
      
         if(input.settings[[i]]$format == 'Clark.data') {
