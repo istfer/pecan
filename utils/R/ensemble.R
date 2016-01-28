@@ -25,6 +25,12 @@
 #--------------------------------------------------------------------------------------------------#
 read.ensemble.output <- function(ensemble.size, pecandir, outdir, 
                                  start.year, end.year, variable, ens.run.ids=NULL){
+
+  if(FALSE) {
+    settings$ensemble$size; pecandir = outdir; outdir = settings$modeloutdir;  
+    start.year = start.year.ens; end.year = end.year.ens; variable = variable.ens; ens.run.ids = ens.run.ids
+  }
+
   if (is.null(ens.run.ids)) {
     samples.file <- file.path(pecandir, 'samples.Rdata')
     if(file.exists(samples.file)){

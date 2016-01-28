@@ -46,7 +46,7 @@ pda.mcmc.bs <- function(settings, params.id=NULL, param.names=NULL, prior.id=NUL
   n.param.all  <- nrow(prior)
 
   ## Load data to assimilate against
-  inputs <- load.pda.data(settings$assim.batch$inputs, con)
+  inputs <- load.pda.data(settings, con)
   n.input <- length(inputs)
 
   ## Set model-specific functions
@@ -109,8 +109,9 @@ pda.mcmc.bs <- function(settings, params.id=NULL, param.names=NULL, prior.id=NUL
       0.1 * diff(eval(prior.fn$qprior[[prior.ind[ind[i]]]], list(p=c(0.05,0.95))))
   }
 
-  ## Convert jvar into a covariance matrix for block sampling
-  jcov = diag( unlist(settings$assim.batch$jump$jvar) )
+  ## Convert jvar into a covariance matrix for block sampling. Weirdly, have to specify size in case jvar.diag has only one element. 
+  jvar.diag <- unlist(settings$assim.batch$jump$jvar)
+  jcov <- diag( jvar.diag, nrow=length(jvar.diag) )
 
   ## Create dir for diagnostic output
   if(!is.null(settings$assim.batch$diag.plot.iter)) {
@@ -129,7 +130,7 @@ pda.mcmc.bs <- function(settings, params.id=NULL, param.names=NULL, prior.id=NUL
     ## Adjust Jump distribution
     if((i > (start + 1)) && ((i - start) %% settings$assim.batch$jump$adapt == 0)){
       jcov <- pda.adjust.jumps.bs(settings, jcov, accept.count, 
-                params[(i - settings$assim.batch$jump$adapt):(i-1), prior.ind])
+                params[(i - settings$assim.batch$jump$adapt):(i-1), prior.ind, drop=F])
       accept.count <- 0 # Reset counter
 
       # Save updated settings XML. Will be overwritten at end, but useful in case of crash

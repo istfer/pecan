@@ -12,7 +12,7 @@ load.pda.data(input.settings, con)
 \arguments{
 \item{file.in}{= the netcdf file of L2 data}
 
-\item{input.settings}{= settings$assim.batch$inputs from pecan.xml or similar}
+\item{settings}{= PEcAn settings list}
 }
 \value{
 A data frame of all variables in the netcdf

@@ -28,14 +28,12 @@ The easiest way to run PEcAn's parameter data assimilation is to add an `<assim.
     <param>Amax</param>
   </param.names>
   <inputs>
-    <file>
-      <id>1000000358</id>
+    <input>
+      <variable.id>297</variable.id>
+      <input.id>1000000358</input.id>
       <format>Ameriflux.L4</format>
-      <data.model>
-        <likelihood>Laplace</likelihood>
-        <variable.id>297</variable.id>
-      </data.model>
-    </file>
+      <likelihood>Laplace</likelihood>
+    </input>
   </inputs>
   <jump>
     <ar.target>0.5</ar.target>
@@ -65,14 +63,13 @@ Here are details about the settings:
   ```
 
 * `<inputs>` Observation data to be compared to the model. In principle, can be one or more datasets, specified in a variety of ways. In practice, the code is only tested for a single dataset currently, and assumes the input is Ameriflux NEE. 
-  + `<file>` Denotes a set of tags for a single input. Would be repeated for multiple datasets once that functionality is supported. 
-    + `<id>` BETY input ID for looking up the input. Will be used preferentially over `<path>` or `<source>` (below). 
+  + `<input>` Denotes a set of tags for a single input. Would be repeated for multiple datasets once that functionality is supported. 
+    + `<variable.id>` The BETY variable ID associated with this dataset. The idea is that specific preprocessing steps (e.g., estimating heteroskedastic error for tower NEE) would be associated with particular IDs. Could automate further by assigning default `<likelihood>` to variable.id values (allowing `<likelihood>` to be omitted from pecan.xml). And/or could add a separate tag `<preprocess>` that could specify a function to override any default associated with the variable ID.
+    + `<input.id>` BETY input ID for looking up the input. Will be used preferentially over `<path>` or `<source>` (below). 
     + `<path>` File path to the input. Only used if no `<id>` is given. 
     + `<source>` A standardized source of input data (e.g., Ameriflux). Not implemented yet, but the idea would be similar to the met workflow, PEcAn would be able to use standard data sources automatically where available. Only used if no `<id>` or `<path>` is given.
     + `<format>` An identifier to tell PEcAn how to handle the input. Currently allows either `Ameriflux.L2` or `Ameriflux.L4`. 
-    + `<data.model>` Block for specifying the data model to be used with this dataset. Currently ignored since all data are assumed to be Ameriflux NEE and treated identically.
-      + `<likelihood>` Identifier for the likelihood to use. E.g., the Ameriflux data use a Laplacian likelihood. 
-      + `<variable.id>` The BETY variable ID associated with this dataset. The idea is that specific preprocessing steps (e.g., estimating heteroskedastic error for tower NEE) would be associated with particular IDs. Could automate further by assigning default `<likelihood>` to variable.id values (allowing `<likelihood>` to be omitted from pecan.xml). And/or could add a separate tag `<preprocess>` that could specify a function to override any default associated with the variable ID.
+    + `<likelihood>` Identifier for the likelihood to use. E.g., the Ameriflux data use a Laplacian likelihood. 
 * `<jump>` 
   + `<ar.target>` Target acceptance rate for the adaptive jump algorithm. Defaults to 0.5 if missing. 
   + `<adapt>` Number of iterations between jump variance adaptations. Defaults to `floor(iter/10)` if missing. 

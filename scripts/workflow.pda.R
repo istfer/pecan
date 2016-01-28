@@ -178,7 +178,7 @@ status.start("OBSERVATIONS")
 window = 6
 if(!is.null(settings$assim.batch$inputs)) {
   con <- try(db.open(settings$database$bety), silent=TRUE)
-  inputs <- load.pda.data(settings$assim.batch$inputs, con)
+  inputs <- load.pda.data(settings, con)
   NEEo <- inputs[[1]]$NEEo
   NEEo <- NEEo / (1000/12*1e6/10000/86400/365) #convert umol/m2/s -> kgC/ha/yr
   db.close(con)
