@@ -1,5 +1,12 @@
-### CODE for simple diagnostic plots for ED2.1 HDF output files
-## This is the monthly version. Used to be called just "diagnostics.r" for some reason.
+##' Reads ED2 outputs and passes them to an R list
+##'
+##' @title read ED2 cohort data 
+##' @param path location where outputs are stored
+##' @param prefix prefix of output files
+##' @param res.flag flag for selecting resolution 
+##' @export
+##' @author Mike Dietze, Ryan Kelly
+
 
 umol2kgC <- 1.20107e-8  ## umol(CO2) -> kg(C)
 

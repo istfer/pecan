@@ -19,8 +19,4 @@ License: FreeBSD + file LICENSE
 Copyright: Authors
 LazyLoad: yes
 LazyData: FALSE
-Collate:
-    fitA.R
-    Licor.QC.R
-    plots.R
 RoxygenNote: 5.0.1

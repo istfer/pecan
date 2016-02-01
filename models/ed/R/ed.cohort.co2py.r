@@ -1,6 +1,10 @@
-# ----- ed.var.init ---------------------------------------------------------------------#
-# Pull variable from edoutput data, handle as specified, output with metadata
-# ---------------------------------------------------------------------------------------#
+##' Pull variable from edoutput data, handle as specified, output with metadata
+##'
+##' @title postprocess ED2 cohort data
+##' @export
+##' @author Ryan Kelly
+
+
 ed.var.init = function(dat, varname, type=NULL, units=NULL, longname=NULL, ...) {
   if(is.null(type)) {
     type = ed.vartype(dat, varname)

@@ -1,3 +1,14 @@
+##' Aggregate over PFT, DBH, YR
+##'
+##' @title Aggregate over PFT, DBH, YR
+##' @param ed.path
+##' @param varnames
+##' @param dbh.breaks
+##' @param pfts
+##' @param yrs
+##' @export
+##' @author Ryan Kelly
+
 ed.cohort.bin.PFT.DBH.YR <- function(ed.path, varnames, dbh.breaks, pfts, yrs) {
   require(ncdf4)
 

@@ -1,3 +1,8 @@
+##' Diagnostic plots from many ED runs
+##'
+##' @title diagnostic plots from ED2 data
+##' @export
+##' @author Ryan Kelly
 
 
 

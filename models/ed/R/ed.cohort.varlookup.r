@@ -1,6 +1,11 @@
-# ----- ed.var --------------------------------------------------------------------------#
-# Lookup function for reading in / processing commonly used ED variables
-# ---------------------------------------------------------------------------------------#
+##' Lookup function for reading in/ processing commonly used ED variables
+##'
+##' @title lookup function
+##' @param dat
+##' @param varname
+##' @export
+##' @author Ryan Kelly
+
 ed.var = function(dat, varname) {
   if(toupper(varname) == "AGB_CO") {
     out = ed.var.init(dat, "AGB_CO", type='co',
