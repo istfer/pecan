@@ -1,12 +1,4 @@
-#--------------------------------------------------------------------------------------------------#
-##' 
-##' 
-##' @name GaussProcess
-##' @title 
-##' @return 
 ##' @export
-##' @author
-##'
 
 GaussProcess <-
 function(x,y,isotropic=TRUE,nugget=TRUE,method="bayes",ngibbs=5000,burnin=1000,thin=1,jump.ic=c(1.1,0.2),prior="IG",mix="joint",psi=NULL,zeroMean = FALSE,exclude = NULL,...){
