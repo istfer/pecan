@@ -1,3 +1,13 @@
+#--------------------------------------------------------------------------------------------------#
+##' 
+##' 
+##' @name zzz
+##' @title 
+##' @return 
+##' @export
+##' @author
+##'
+
 # .First.lib <- function(which.lib.loc, package){
 
 ## define a class for automatically tuning jump distributions

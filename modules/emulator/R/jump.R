@@ -1,3 +1,13 @@
+#--------------------------------------------------------------------------------------------------#
+##' 
+##' 
+##' @name jump
+##' @title 
+##' @return 
+##' @export
+##' @author
+##'
+
 `jump` <-
 function(ic=0,rate=0.4,...){
   return(new("jump",history=ic,arate=0,target=rate))

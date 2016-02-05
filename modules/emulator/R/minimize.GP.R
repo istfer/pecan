@@ -1,3 +1,13 @@
+#--------------------------------------------------------------------------------------------------#
+##' 
+##' 
+##' @name minimize.GP
+##' @title 
+##' @return 
+##' @export
+##' @author
+##'
+
 `minimize.GP` <-
 function(gp,rng,x0,splinefuns = NULL){
   

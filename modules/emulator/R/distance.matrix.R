@@ -1,3 +1,13 @@
+#--------------------------------------------------------------------------------------------------#
+##' 
+##' 
+##' @name distance.matrix
+##' @title 
+##' @return 
+##' @export
+##' @author
+##'
+
 `distance.matrix` <-
 function(x,power=1,dim=2){
   n <- nrow(x)

@@ -1,3 +1,13 @@
+#--------------------------------------------------------------------------------------------------#
+##' 
+##' 
+##' @name predict.GP
+##' @title 
+##' @return 
+##' @export
+##' @author
+##'
+
 `predict.GP` <-
 function(gp,xpred,cI = NULL,pI = NULL,splinefcns=NULL){
   

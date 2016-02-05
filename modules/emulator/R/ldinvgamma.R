@@ -1,3 +1,13 @@
+#--------------------------------------------------------------------------------------------------#
+##' 
+##' 
+##' @name ldinvgamma
+##' @title 
+##' @return 
+##' @export
+##' @author
+##'
+
 `ldinvgamma` <-
 function (x, shape, scale = 1)
   #log dinvgamma, based on MCMCpack 

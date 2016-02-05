@@ -1,3 +1,13 @@
+#--------------------------------------------------------------------------------------------------#
+##' 
+##' 
+##' @name update.jump
+##' @title 
+##' @return 
+##' @export
+##' @author
+##'
+
 `update.jump` <-
 function(jmp,chain){
   ##check for valid typing
