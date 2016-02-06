@@ -1,3 +1,4 @@
+##' @title GaussProcess
 ##' @export
 
 GaussProcess <-
