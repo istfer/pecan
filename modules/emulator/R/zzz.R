@@ -1,6 +1,6 @@
 #--------------------------------------------------------------------------------------------------#
 ##' 
-##' @title zzz 
+##' @title setClass jump 
 ##' @export
 ##'
 
@@ -18,6 +18,8 @@ setClass("jump",
 ## clen = update period (recompute when count > clen)
 setIs("jump","list")
 
+##' @title setClass mvjump 
+##' @export
 setClass("mvjump",
          representation(history="matrix",count="numeric",target="numeric",clen="numeric",arate="numeric",mydim="numeric"),
          prototype=list(history=matrix(NA,0,0),count=0,target=0.4,clen=100,arate=vector("numeric",0),mydim=1)

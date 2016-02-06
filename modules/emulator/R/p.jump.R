@@ -11,6 +11,8 @@ function(jmp){
   return(attr(jmp,"history")[n])
 }
 
+##' @title p.mvjump 
+##' @export
 `p.mvjump` <-
 function(jmp){
   n <- nrow(attr(jmp,"history"))

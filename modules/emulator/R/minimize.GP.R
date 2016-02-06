@@ -54,6 +54,9 @@ function(gp,rng,x0,splinefuns = NULL){
 
 
 #calculates the probability of a set of parameter values, given by xnew
+##' @title gpeval 
+##' @export
+
 gpeval <- function(xnew,k,mu,tau,psi,x,rng,splinefcns){
     
   ## second calc value
@@ -76,6 +79,8 @@ gpeval <- function(xnew,k,mu,tau,psi,x,rng,splinefcns){
   return(yprime)
 }
 
+##' @title ddist 
+##' @export
 ddist<- function(x, prior){
   eval(parse(text=paste('d', prior$distn, sep='')))(x, prior$parama, prior$paramb)
 }
@@ -89,6 +94,9 @@ ddist<- function(x, prior){
 #   return(joint)
 # }
 
+##' @title calculate.prior  
+##' @export
+
 calculate.prior <- function(samples, priors){
   joint <- sum(sapply(1:length(priors), 
           function(i) eval(priors[[i]], list(x=samples[[i]])) 
@@ -96,6 +104,8 @@ calculate.prior <- function(samples, priors){
   return(joint)
 }
 
+##' @title get.y 
+##' @export
 get.y <- function(gp, xnew, priors, ...){
   likelihood <- predict(gp, xnew)
   prior.prob <- calculate.prior(xnew, priors)
@@ -108,6 +118,8 @@ get.y <- function(gp, xnew, priors, ...){
 #   return(acceptance)
 # }
 
+##' @title is.accepted 
+##' @export
 is.accepted <- function(ycurr, ynew, format='lin'){
   a <- exp(ynew - ycurr)
   acceptance <- a>runif(1)
@@ -117,6 +129,10 @@ is.accepted <- function(ycurr, ynew, format='lin'){
 ## function to sample from a GP model
 ## that is assumed to be a -lnLikelihood surface
 ## with flat priors and bounded region
+
+##' @title mcmc.GP 
+##' @export
+
 mcmc.GP <- function(gp,x0,nmcmc,rng,format="lin",mix, splinefcns=NULL, 
     jmp0=0.35*(rng[,2]-rng[,1]), ar.target=0.5, priors=NA){
   ##formats: lin = lnlike fcn
@@ -179,7 +195,8 @@ mcmc.GP <- function(gp,x0,nmcmc,rng,format="lin",mix, splinefcns=NULL,
 ###################   IN PROGRESS ##############
 }
 
-
+##' @title bounded
+##' @export
 bounded <- function(xnew,rng)
 {
   xnew <- as.vector(as.matrix(xnew))
@@ -190,7 +207,8 @@ bounded <- function(xnew,rng)
 
 
 
-
+##' @title plot.mvjump 
+##' @export
 `plot.mvjump` <-
 function(jmp){
   par(mfrow=c(1,2))

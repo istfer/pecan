@@ -25,6 +25,8 @@ function(jmp,chain){
   jmp
 }
 
+##' @title update.mvjump 
+##' @export
 `update.mvjump` <-
     function(jmp,chain){
   ##check for valid typing

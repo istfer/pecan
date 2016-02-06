@@ -27,6 +27,9 @@ function(theta,d,nugget,myY,maxval=Inf){
   
 }
 
+##' @title gp_mle2 
+##' @export
+
 ## zero mean version
 `gp_mle2` <- function(theta,d,nugget,myY,maxval=Inf){
 
