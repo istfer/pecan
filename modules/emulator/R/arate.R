@@ -2,7 +2,7 @@
 ##' 
 ##' 
 ##' @name arate
-##' @title 
+##' @title arate 
 ##' @return 
 ##' @export
 ##' @author

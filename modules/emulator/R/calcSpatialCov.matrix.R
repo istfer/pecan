@@ -1,12 +1,5 @@
 #--------------------------------------------------------------------------------------------------#
-##' 
-##' 
-##' @name calcSpatialCov.matrix
-##' @title 
-##' @return 
 ##' @export
-##' @author
-##'
 
 `calcSpatialCov.matrix` <-
 function(d,psi,tau){
