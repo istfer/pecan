@@ -160,25 +160,25 @@ mcmc.GP <- function(gp,x0,nmcmc,rng,format="lin",mix, splinefcns=NULL,
       for(i in 1:dim){
         xnew[i] <- rnorm(1,xcurr[[i]],p(jmp)[i])
       }
-      #if(bounded(xnew,rng)){
+      if(bounded(xnew,rng)){
         ynew <- get.y(gp, xnew, priors)
         if(is.accepted(ycurr,ynew)){
           xcurr <- xnew
           ycurr <- ynew
         }
-      #}
+      }
     } else {  ## mix = each
       for(i in 1:dim){
         ## propose new
         xnew <- xcurr
         xnew[i] <- rnorm(1,xcurr[[i]],p(jmp)[i])
-        #if(bounded(xnew,rng)){
+        if(bounded(xnew,rng)){
           ynew <- get.y(gp, xnew, priors)
           if(is.accepted(ycurr,ynew)){
             xcurr <- xnew
             ycurr <- ynew
           }
-        #}
+        }
       }
     }
     samp[g,] <- unlist(xcurr)
