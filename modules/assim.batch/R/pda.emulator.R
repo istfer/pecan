@@ -87,24 +87,36 @@ pda.emulator <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
   ## ------------------------------------ Emulator ------------------------------------ ##
   ## Propose parameter knots (X) for emulator design
   params.X <- pda.generate.knots(settings$assim.batch$n.knot, n.param.all, prior.ind, prior.fn, pname)
-
+  LL.X <- rep(NA, settings$assim.batch$n.knot)
+  
   ## Set up runs and write run configs for all proposed knots X
   run.ids <- pda.init.run(settings, con, my.write.config, workflow.id, params.X, 
                           n=settings$assim.batch$n.knot, 
                           run.names=paste0("Knot.",1:settings$assim.batch$n.knot))
 
+  
   ## start model runs
   start.model.runs(settings,settings$database$bety$write)
 
+  ## start model runs
+  #start.model.runs(settings,settings$database$bety$write)
+
   ## Retrieve model outputs, calculate likelihoods (and store them in database)
-  LL.X <- rep(NA, settings$assim.batch$n.knot)
-  for(i in 1:settings$assim.batch$n.knot) {
+  #LL.X <- rep(NA, settings$assim.batch$n.knot)
+  #for(i in 1:settings$assim.batch$n.knot) {
     ## read model outputs
-    model.out <- pda.get.model.output(settings, run.ids[i], inputs)
+    #model.out <- pda.get.model.output(settings, run.ids[i], inputs)
+  models.out=list()
+  for(i in 1:settings$assim.batch$n.knot) {
+     models.out[[i]] <- pda.get.model.output(settings, run.ids[i], inputs)
+  }
 
     ## calculate likelihood
-    LL.X[i] <- pda.calc.llik(settings, con, model.out, run.ids[i], inputs, llik.fn)
-  }
+   # LL.X[i] <- pda.calc.llik(settings, con, model.out, run.ids[i], inputs, llik.fn)
+  for(i in 1:settings$assim.batch$n.knot) {
+    LL.X[i] <- pda.calc.llik(settings, con, models.out[[i]], run.ids[i], inputs, llik.fn)
+  #}
+ }
 
   ## Collect all likelihoods (Y)
   # For now, just the likelihoods from the runs we just did. 
