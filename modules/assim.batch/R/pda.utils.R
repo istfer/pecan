@@ -13,7 +13,7 @@ assim.batch <- function(settings) {
     return(settings)
   }
   require(coda)
-
+  
   if(is.null(settings$assim.batch$method)) settings$assim.batch$method = "bruteforce.bs"
   
   if(settings$assim.batch$method == "bruteforce") {
@@ -25,7 +25,7 @@ assim.batch <- function(settings) {
   } else {
     logger.error(paste0("PDA method ", settings$assim.batch$method, " not found!"))
   }
-    
+  
   return(settings)
 }
 
@@ -46,8 +46,8 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
   # If neither an argument or a setting is provided, set a default value in settings. 
   
   # Each assignment below includes an explicit type conversion to avoid problems later. 
-
- 
+  
+  
   # params.id: Either null or an ID used to query for a matrix of MCMC samples later
   if(!is.null(params.id)) {
     settings$assim.batch$params.id <- params.id
@@ -55,8 +55,8 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
   if(!is.null(settings$assim.batch$params.id)) {
     settings$assim.batch$params.id <- as.character(settings$assim.batch$params.id)
   }
-
-
+  
+  
   # param.names: Names of parameters to assimilate against
   if(!is.null(param.names)) {
     settings$assim.batch$param.names <- param.names
@@ -73,11 +73,11 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
   params.in.constants <- which(unlist(settings$assim.batch$param.names) %in% constant.names)
   if(length(params.in.constants) > 0) {
     logger.severe(paste0("PDA requested for parameter(s) [",
-      paste(settings$assim.batch$param.names[params.in.constants], collapse=", "), 
-      "] but these parameters are specified as constants in pecan.xml!"))
+                         paste(settings$assim.batch$param.names[params.in.constants], collapse=", "), 
+                         "] but these parameters are specified as constants in pecan.xml!"))
   }
   
-
+  
   # prior: Either null or an ID used to query for priors later
   if(!is.null(prior.id)) {
     settings$assim.batch$prior$posterior.id <- prior.id
@@ -85,8 +85,8 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
   if(!is.null(settings$assim.batch$prior$posterior.id)) {
     settings$assim.batch$prior$posterior.id <- as.character(settings$assim.batch$prior$posterior.id)
   }
-
-
+  
+  
   # chain: An identifier for the MCMC chain. Currently not used for anything but a label.
   if(!is.null(chain)) {
     settings$assim.batch$chain <- chain
@@ -95,8 +95,8 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
     settings$assim.batch$chain <- 1
   }
   settings$assim.batch$chain <- as.numeric(settings$assim.batch$chain)
-
-
+  
+  
   # iter: Number of MCMC iterations. 
   if(!is.null(iter)) {
     settings$assim.batch$iter <- iter
@@ -105,8 +105,8 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
     settings$assim.batch$iter <- 100
   }
   settings$assim.batch$iter <- as.numeric(settings$assim.batch$iter)
-
-
+  
+  
   # n.knot: Number of emulator knots
   if(!is.null(n.knot)) {
     settings$assim.batch$n.knot <- n.knot
@@ -115,9 +115,9 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
     settings$assim.batch$n.knot <- 100
   }
   settings$assim.batch$n.knot <- as.numeric(settings$assim.batch$n.knot)
-
-
-
+  
+  
+  
   # ----- Jump distribution / tuning parameters
   # adapt: How often to adapt the MCMC. Defaults to iter/10
   if(!is.null(adapt)) {
@@ -127,8 +127,8 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
     settings$assim.batch$jump$adapt <- floor(settings$assim.batch$iter/10)
   }
   settings$assim.batch$jump$adapt <- as.numeric(settings$assim.batch$jump$adapt)
-
-
+  
+  
   # adj.min: minimum amount to reduce jump distribution by. 
   if(!is.null(adj.min)) {   # Default
     settings$assim.batch$jump$adj.min <- adj.min
@@ -147,8 +147,8 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
     settings$assim.batch$jump$ar.target <- 0.5
   }
   settings$assim.batch$jump$ar.target <- as.numeric(settings$assim.batch$jump$ar.target)
-
-
+  
+  
   # jvar: Initial jump variances. Defaults to NA to be based on priors later. 
   if(!is.null(jvar)) {
     settings$assim.batch$jump$jvar <- jvar
@@ -159,12 +159,12 @@ pda.settings <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
   settings$assim.batch$jump$jvar <- as.list(as.numeric(settings$assim.batch$jump$jvar))
   # have to add names or listToXml() won't work
   names(settings$assim.batch$jump$jvar) <- rep("jvar", length(settings$assim.batch$jump$jvar))
-
+  
   # diag.plot.iter: How often to do diagnostic plots. Just need to convert to numeric. 
   if(!is.null(settings$assim.batch$diag.plot.iter)) {
     settings$assim.batch$diag.plot.iter <- as.numeric(settings$assim.batch$diag.plot.iter)
   } 
-
+  
   return(settings)
 }
 
@@ -192,7 +192,7 @@ pda.load.priors <- function(settings, con) {
       logger.warn("Didn't find a valid PDA prior at ", settings$assim.batch$prior$path)
     }
   }
-
+  
   # If no path given or didn't find a valid prior, proceed to using a posterior specified by ID, either as specified in settings or get the most recent as default
   if(!exists("prior.out")) {
     if(is.null(settings$assim.batch$prior$posterior.id)){
@@ -200,17 +200,17 @@ pda.load.priors <- function(settings, con) {
       ## by default, use the most recent posterior as the prior
       pft.id <-  db.query(paste0("SELECT id from pfts where name = '",settings$pfts$pft$name,"'"),con)
       priors <-  db.query(paste0("SELECT * from posteriors where pft_id = ",pft.id),con)
-
+      
       prior.db <- db.query(paste0("SELECT * from dbfiles where container_type = 'Posterior' and container_id IN (", paste(priors$id, collapse=','), ")"),con)
-
+      
       prior.db <- prior.db[ grep("^post\\.distns\\..*Rdata$", prior.db$file_name),]
-
+      
       settings$assim.batch$prior$posterior.id <- prior.db$container_id[which.max(prior.db$updated_at)]
     }
     logger.info(paste0("Using posterior ID ", settings$assim.batch$prior$posterior.id, " as PDA prior."))
     prior.db <- db.query(paste0("SELECT * from dbfiles where container_type = 'Posterior' and container_id = ", settings$assim.batch$prior$posterior.id),con)
     prior.db <- prior.db[ grepl("^post\\.distns\\..*Rdata$", prior.db$file_name),]
-
+    
     # Load the file
     load(file.path(prior.db$file_path, prior.db$file_name))
     prior.out <- post.distns
@@ -222,8 +222,8 @@ pda.load.priors <- function(settings, con) {
   params.no.priors <- which(is.na(match(settings$assim.batch$param.names, rownames(prior.out))))
   if(length(params.no.priors) > 0) {
     logger.severe(paste0("PDA requested for parameter(s) [",
-      paste(settings$assim.batch$param.names[params.no.priors], collapse=", "), 
-      "] but no prior found!"))
+                         paste(settings$assim.batch$param.names[params.no.priors], collapse=", "), 
+                         "] but no prior found!"))
   }
   
   return(list(prior=prior.out, settings=settings))
@@ -323,7 +323,7 @@ pda.init.params <- function(settings, con, pname, n.param.all) {
   if(!is.null(settings$assim.batch$params.id)) {
     params.db <- db.query(paste0("SELECT * FROM dbfiles WHERE id = ", settings$assim.batch$params.id), con)
     load(file.path(params.db$file_path, params.db$file_name)) # loads params
-
+    
     start  <- nrow(params) + 1
     finish <- nrow(params) + as.numeric(settings$assim.batch$iter)
     params <- rbind(params, matrix(NA, finish - start + 1, n.param.all))
@@ -350,15 +350,15 @@ pda.init.params <- function(settings, con, pname, n.param.all) {
 pda.init.run <- function(settings, con, my.write.config, workflow.id, params, 
                          n=ifelse(is.null(dim(params)), 1, nrow(params)), 
                          run.names=paste("run", 1:n, sep=".")) {
-
+  
   # If n=1, convert params to a 1-row data frame (for generically accessing it below)
   if(is.null(dim(params))) {
     pnames <- names(params)
     params <- as.data.frame(matrix(params, nrow=1))
     names(params) <- pnames
   }
-
-
+  
+  
   run.ids <- rep(NA, n)
   for(i in 1:n) {
     ## set RUN.ID
@@ -368,38 +368,38 @@ pda.init.run <- function(settings, con, my.write.config, workflow.id, params,
       db.query(
         paste(
           "INSERT INTO runs", 
-            "(model_id, site_id, start_time, finish_time, outdir,",
-            "created_at, ensemble_id, parameter_list)",
+          "(model_id, site_id, start_time, finish_time, outdir,",
+          "created_at, ensemble_id, parameter_list)",
           "values ('", 
-            settings$model$id, "','", settings$run$site$id, "','", settings$run$start.date, "','", 
-            settings$run$end.date, "','", settings$run$outdir , "','", now, "',",
-            settings$assim.batch$ensemble.id, ",'", paramlist, 
+          settings$model$id, "','", settings$run$site$id, "','", settings$run$start.date, "','", 
+          settings$run$end.date, "','", settings$run$outdir , "','", now, "',",
+          settings$assim.batch$ensemble.id, ",'", paramlist, 
           "')", 
-        sep=''), 
-      con)
+          sep=''), 
+        con)
       run.ids[i] <- db.query(
         paste("SELECT id FROM runs WHERE created_at='", now, "' AND parameter_list='", paramlist, "'", 
-        sep=''),
+              sep=''),
         con)[['id']]
     } else {
       run.ids[i] <- run.names[i]
     }
     dir.create(file.path(settings$rundir, run.ids[i]), recursive=TRUE)
     dir.create(file.path(settings$modeloutdir, run.ids[i]), recursive=TRUE)
-
+    
     ## write config
     do.call(my.write.config,
             args=list(defaults = settings$pfts, 
                       trait.values = list(pft=params[i,],env=NA), 
                       settings = settings, run.id = run.ids[i]))
-
+    
     # Identifiers for ensemble 'runtype'
     if(settings$assim.batch$method == "bruteforce") {
       ensemble.type <- "pda.MCMC"
     } else if(settings$assim.batch$method == "emulator") {
       ensemble.type <- "pda.emulator"
     }
-
+    
     ## write a README for the run
     cat("runtype     : ", paste("pda", settings$assim.batch$method, sep="."), "\n",
         "workflow id : ", as.character(workflow.id), "\n",
@@ -419,12 +419,12 @@ pda.init.run <- function(settings, con, my.write.config, workflow.id, params,
         "rundir      : ", file.path(settings$run$host$rundir, run.ids[i]), "\n",
         "outdir      : ", file.path(settings$run$host$outdir, run.ids[i]), "\n",
         file=file.path(settings$rundir, run.ids[i], "README.txt"), sep='')
-
+    
     ## add the job to the list of runs
     append <- ifelse(i==1, FALSE, TRUE)
     cat(as.character(run.ids[i]), file=file.path(settings$rundir, "runs.txt"), sep="\n", append=append)
   } # end for
-
+  
   return(run.ids)
 }
 
@@ -440,17 +440,17 @@ pda.init.run <- function(settings, con, my.write.config, workflow.id, params,
 ##' @export
 pda.adjust.jumps <- function(settings, accept.rate, pnames=NULL) {
   logger.info(paste0("Acceptance rates were (", 
-                    paste(pnames, collapse=", "), ") = (", 
-                    paste(round(accept.rate/settings$assim.batch$jump$adapt,3), 
-                      collapse=", "), ")"))
+                     paste(pnames, collapse=", "), ") = (", 
+                     paste(round(accept.rate/settings$assim.batch$jump$adapt,3), 
+                           collapse=", "), ")"))
   logger.info(paste0("Using jump variances (", 
-                    paste(round(unlist(settings$assim.batch$jump$jvar),3), collapse=", "), ")"))
-
+                     paste(round(unlist(settings$assim.batch$jump$jvar),3), collapse=", "), ")"))
+  
   adj <- accept.rate / settings$assim.batch$jump$adapt / settings$assim.batch$jump$ar.target
   adj[adj < settings$assim.batch$jump$adj.min] <- settings$assim.batch$jump$adj.min
   settings$assim.batch$jump$jvar <- as.list(unlist(settings$assim.batch$jump$jvar) * adj)
   logger.info(paste0("New jump variances are (", 
-                    paste(round(unlist(settings$assim.batch$jump$jvar),3), collapse=", "), ")"))
+                     paste(round(unlist(settings$assim.batch$jump$jvar),3), collapse=", "), ")"))
   return(settings)
 }
 
@@ -472,9 +472,9 @@ pda.adjust.jumps.bs <- function(settings, jcov, accept.count, params.recent) {
   logger.info(paste0("Acceptance rate was ", 
                      round(accept.count / settings$assim.batch$jump$adapt,3)))
   logger.info(paste0("Using jump variance diagonals (", 
-                    paste(pnames, collapse=", "), ") = (", 
-                    paste(round(diag(jcov),3), collapse=", "), ")"))
-
+                     paste(pnames, collapse=", "), ") = (", 
+                     paste(round(diag(jcov),3), collapse=", "), ")"))
+  
   r <- ncol(params.recent)
   if(accept.count == 0) {
     rescale <- diag(rep(settings$assim.batch$jump$adj.min,r))
@@ -486,13 +486,13 @@ pda.adjust.jumps.bs <- function(settings, jcov, accept.count, params.recent) {
     
     arate <- accept.count / settings$assim.batch$jump$adapt
     adjust <- max(arate / settings$assim.batch$jump$ar.target, settings$assim.batch$jump$adj.min)
-
+    
     rescale <- diag(stdev * adjust, nrow=length(stdev * adjust))
     jcov <- rescale %*% corr %*% rescale
   }
-
+  
   logger.info(paste0("New jump variance diagonals are (", 
-                    paste(round(diag(jcov),3), collapse=", "), ")"))
+                     paste(round(diag(jcov),3), collapse=", "), ")"))
   return(jcov)
 }
 
@@ -510,7 +510,7 @@ pda.calc.llik <- function(settings, con, model.out, run.id, inputs, llik.fn) {
   if(is.na(model.out)) { # Probably indicates model failed entirely
     return(-Inf)
   }
-
+  
   n.input <- length(inputs)
   
   LL.vec <- n.vec <- numeric(n.input)
@@ -522,12 +522,12 @@ pda.calc.llik <- function(settings, con, model.out, run.id, inputs, llik.fn) {
   weights <- rep(1/n.input, n.input) # TODO: Implement user-defined weights
   LL.total <- sum(LL.vec * weights)
   neff <- n.vec * weights
-
-
+  
+  
   ## insert Likelihood records in database
   if (!is.null(con)) {
     now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-
+    
     # BETY requires likelihoods to be associated with inputs, so only proceed 
     # for inputs with valid input ID (i.e., not the -1 dummy id). 
     # Note that analyses requiring likelihoods to be stored therefore require 
@@ -536,15 +536,15 @@ pda.calc.llik <- function(settings, con, model.out, run.id, inputs, llik.fn) {
     for(k in db.input.ind) {
       db.query(
         paste0("INSERT INTO likelihoods ", 
-          "(run_id,            variable_id,                     input_id, ",
-          " loglikelihood,     n_eff,                           weight,   ",
-          " created_at) ",
-        "values ('", 
-            run.id, "', '",    inputs[[k]]$variable.id, "', '", inputs[[k]]$input.id, "', '", 
-            LL.vec[k], "', '", floor(neff[k]), "', '",          weights[k] , "', '", 
-            now,"')"
+               "(run_id,            variable_id,                     input_id, ",
+               " loglikelihood,     n_eff,                           weight,   ",
+               " created_at) ",
+               "values ('", 
+               run.id, "', '",    inputs[[k]]$variable.id, "', '", inputs[[k]]$input.id, "', '", 
+               LL.vec[k], "', '", floor(neff[k]), "', '",          weights[k] , "', '", 
+               now,"')"
         ), 
-      con)
+        con)
     }
   }
   
@@ -564,10 +564,10 @@ pda.calc.llik <- function(settings, con, model.out, run.id, inputs, llik.fn) {
 pda.generate.knots <- function(n.knot, n.param.all, prior.ind, prior.fn, pname) {
   # By default, all parameters will be fixed at their median
   probs <- matrix(0.5, nrow=n.knot, ncol=n.param.all)
-
+  
   # Fill in parameters to be sampled with probabilities sampled in a LHC design
   probs[, prior.ind] <- lhc(t(matrix(0:1, ncol=length(prior.ind), nrow=2)), n.knot)
-
+  
   # Convert probabilities to parameter values
   params <- NA*probs
   for(i in 1:n.param.all) {
@@ -591,15 +591,15 @@ pda.generate.knots <- function(n.knot, n.param.all, prior.ind, prior.fn, pname) 
 pda.plot.params <- function(settings, params.subset, prior.ind) {
   # *** TODO: Generalize for multiple PFTS
   pdf(file.path(settings$pfts$pft$outdir, 
-        paste0('mcmc.diagnostics.pda', settings$assim.batch$ensemble.id, '.pdf')))
-    dm <- as.mcmc(params.subset)
-
-    plot(dm)
-    summary(dm)
-    if(length(prior.ind)>1){
-      crosscorr(dm)
-      pairs(params.subset)
-    }
+                paste0('mcmc.diagnostics.pda', settings$assim.batch$ensemble.id, '.pdf')))
+  dm <- as.mcmc(params.subset)
+  
+  plot(dm)
+  summary(dm)
+  if(length(prior.ind)>1){
+    crosscorr(dm)
+    pairs(params.subset)
+  }
   dev.off()
 }
 
@@ -615,38 +615,38 @@ pda.plot.params <- function(settings, params.subset, prior.ind) {
 ##' @export
 pda.postprocess <- function(settings, con, params, pname, prior, prior.ind, burnin=NULL) {
   if(is.null(burnin)) burnin <- ceiling(min(2000,0.2*nrow(params)))
-
+  
   ## Save params
   filename.mcmc <- file.path(settings$pfts$pft$outdir, 
-                     paste0('mcmc.pda', settings$assim.batch$ensemble.id, '.Rdata'))
+                             paste0('mcmc.pda', settings$assim.batch$ensemble.id, '.Rdata'))
   save(params, file = filename.mcmc)
-
+  
   ## Assess MCMC output
   params.subset <- as.data.frame(params[burnin:nrow(params),prior.ind])
-    names(params.subset) <- pname[prior.ind]
+  names(params.subset) <- pname[prior.ind]
   pda.plot.params(settings, params.subset, prior.ind)
-
+  
   ## create a new Posteriors DB entry
   now <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   pft.id <- db.query(paste0(
     "SELECT id from pfts where name = '", settings$pfts$pft$name,"'"), con)
-
+  
   db.query(paste0(
     "INSERT INTO posteriors (pft_id, created_at, updated_at) VALUES (", 
     pft.id, ", '", now, "', '", now, "')"), con)
-
+  
   posteriorid <- db.query(paste0(
     "SELECT id FROM posteriors WHERE pft_id=", pft.id, " AND created_at='", now, "'"), con)[['id']]
-
+  
   settings$assim.batch$params.id <- dbfile.insert(
     dirname(filename.mcmc), basename(filename.mcmc), 'Posterior', posteriorid, con, reuse=TRUE)
-
+  
   ## save named distributions
   # *** TODO: Generalize for multiple PFTS
   post.distns <- approx.posterior(params.subset, prior, outdir = settings$pfts$pft$outdir,
-                    filename.flag=paste0('.pda.', settings$assim.batch$ensemble.id))
+                                  filename.flag=paste0('.pda.', settings$assim.batch$ensemble.id))
   filename <- file.path(settings$pfts$pft$outdir, 
-                paste0('post.distns.pda', settings$assim.batch$ensemble.id, '.Rdata'))
+                        paste0('post.distns.pda', settings$assim.batch$ensemble.id, '.Rdata'))
   save(post.distns, file = filename)
   dbfile.insert(dirname(filename), basename(filename), 'Posterior', posteriorid, con)
   
@@ -655,8 +655,8 @@ pda.postprocess <- function(settings, con, params, pname, prior, prior.ind, burn
     file.remove(file.path(dirname(filename), 'post.distns.Rdata'))
   }
   file.symlink(filename, file.path(dirname(filename), 'post.distns.Rdata'))
-
-
+  
+  
   ## coerce parameter output into the same format as trait.mcmc
   # ********* TODO: Check/fix... do we really want to save mcmc for only the parameters that were updated???
   pname <- rownames(post.distns)
@@ -672,17 +672,17 @@ pda.postprocess <- function(settings, con, params, pname, prior, prior.ind, burn
       names(trait.mcmc)[k] <- pname[i]      
     }
   }
-
+  
   ## save updated parameter distributions as trait.mcmc so that they can be read by the ensemble code
   # *** TODO: Generalize for multiple PFTS
   filename <- file.path(settings$pfts$pft$outdir, 
-                paste0('trait.mcmc.pda', settings$assim.batch$ensemble.id, '.Rdata'))
+                        paste0('trait.mcmc.pda', settings$assim.batch$ensemble.id, '.Rdata'))
   save(trait.mcmc, file = filename)
   dbfile.insert(dirname(filename), basename(filename), 'Posterior', posteriorid, con)
-
+  
   ## save updated settings XML
   saveXML(listToXml(settings, "pecan"), file=file.path(settings$outdir, 
-    paste0('pecan.pda', settings$assim.batch$ensemble.id, '.xml')))
-
+                                                       paste0('pecan.pda', settings$assim.batch$ensemble.id, '.xml')))
+  
   return(settings)
 }

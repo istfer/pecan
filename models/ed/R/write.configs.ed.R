@@ -182,10 +182,18 @@ write.config.ED2 <- function(defaults, trait.values, settings, run.id){
         vals <- trait.values[[group]]
         
         # Add defaults (overriding for traits that were already assigned)
-        const = defaults[[group]]$constants
-        for(i in seq_along(const)) {
-          vals[[names(const)[i]]] = const[[i]]
+        if(!is.null(defaults[[group]]$constants)){
+          const = defaults[[group]]$constants
+          for(i in seq_along(const)) {
+            vals[[names(const)[i]]] = as.numeric(const[[i]])
+          }
+        } else if(!is.null(settings$pfts[[group]]$constants)){
+          const = settings$pfts[[group]]$constants
+          for(i in seq_along(const)) {
+            vals[[names(const)[i]]] = as.numeric(const[[i]])
+          }
         }
+        
    
         # Convert
         vals <- convert.samples.ED(vals)
@@ -205,7 +213,11 @@ write.config.ED2 <- function(defaults, trait.values, settings, run.id){
       pft.xml <- listToXml(vals, 'pft')
       
       ## Insert PFT names into output xml file. Doesn't seem safe to RK to assume that defaults will contain a name, but leaving as is for now. 
+      if(is.null(defaults[[group]]$name)){
+      pft.xml <- append.xmlNode(pft.xml, xmlNode("name", settings$pfts[[group]]$name))
+      } else {
       pft.xml <- append.xmlNode(pft.xml, xmlNode("name", defaults[[group]]$name))
+      }
       
       ##TODO this should come from the database
       if (is.null(pft.xml[["num"]])) {
