@@ -18,7 +18,7 @@ load.data <- function(data.path, format, start_year = NA, end_year=NA, site=NA, 
   
   # Determine the function that should be used to load the data 
   fcn1 <- paste0("load.",format$file_name)
-  fcn2 <- paste0("load.",format$mimetype)
+  fcn2 <- ifelse(format$mimetype == "x-netcdf", paste0("load.netcdf"), paste0("load.",format$mimetype))
   if(exists(fcn1)){
     fcn <- match.fun(fcn1)
   }else if(exists(fcn2)){
