@@ -43,6 +43,8 @@ calc.benchmark <- function(settings, con){ #settings file is output from start.b
   start_year <- year(settings$run$start.date)
   end_year <- year(settings$run$end.date)
   
+  files = dir(dirname(data.path),basename(data.path),full.names = TRUE)
+  
   results <- calc.metrics(data.path, format, vars_used, model_run, metrics, start_year, end_year, site)
   
   

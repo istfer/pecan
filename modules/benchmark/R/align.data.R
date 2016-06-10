@@ -33,28 +33,34 @@ align.data <- function(model_full, obvs_full, dat_vars, start_year, end_year){
   if(mode.m > mode.o){
     date.coarse = model$posix
     date.fine = obvs$posix
-    data.fine = obvs[,dat_vars]
-    colnames(data.fine) <- paste0(colnames(data.fine), ".o")
-    out1 <- model[,dat_vars]
-    colnames(out1) <- paste0(colnames(out1), ".m")
+    data.fine = obvs[, dat_vars, drop = FALSE]
+    colnames(data.fine) <- paste0(dat_vars, ".o")
+    out1 <- model[, dat_vars, drop = FALSE]
+    colnames(out1) <- paste0(dat_vars, ".m")
   }else if(mode.o > mode.m){
     date.coarse = obvs$posix
     date.fine = model$posix
-    data.fine = model[,dat_vars]
-    colnames(data.fine) <- paste0(colnames(data.fine), ".m")
-    out1 <- obvs[,dat_vars]
-    colnames(out1) <- paste0(colnames(out1), ".o")
+    data.fine = model[, dat_vars, drop = FALSE]
+    colnames(data.fine) <- paste0(dat_vars, ".m")
+    out1 <- obvs[, dat_vars, drop = FALSE]
+    colnames(out1) <- paste0(dat_vars, ".o")
   }
   
-  # There will be other functions eventually
-  
-  out2 <-apply(data.fine,2,function(x) mean.over.larger.timestep(date.coarse, date.fine, x))  
+  if(mode.o != mode.m){
+    # There will be other functions eventually
+    out2 <-apply(data.fine,2,function(x) mean.over.larger.timestep(date.coarse, date.fine, x))
+    dat <- cbind(out1, out2)
+    dat$posix <- date.coarse
+  } else if(mode.o == mode.m){ 
+    out1 <- model[, dat_vars, drop = FALSE]
+    colnames(out1) <- paste0(dat_vars, ".m")
+    out2 <- obvs[, dat_vars, drop = FALSE]
+    colnames(out2) <- paste0(dat_vars, ".o")
+    dat <- cbind(out1, out2)
+    dat$posix <- model$posix
+  }
+    
 
-  dat <- cbind(out1,out2)
-  dat$posix <- date.coarse
-  
-  
-  
   return(dat)
 }
   

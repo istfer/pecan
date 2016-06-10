@@ -1,7 +1,7 @@
 ##' @name load.data
 ##' @title load.data
 ##' @export
-##' @param data.path character
+##' @param data.path character or list
 ##' @param format list
 ##' @param start_year numeric
 ##' @param end_year numeric
@@ -10,15 +10,17 @@
 ##' Generic function to convert input files containing observational data to 
 ##' a common PEcAn format. 
 
-load.data <- function(data.path, format, start_year = NA, end_year=NA, site=NA, vars.used.index, time.row){
+load.data <- function(data.path, format, start_year = NA, end_year=NA, site=NA, vars.used.index, time.row = NULL){
   
+    
   require(PEcAn.benchmark)
   require(lubridate)
   require(udunits2)
   
   # Determine the function that should be used to load the data 
+  mimetype = sub("-","_",format$mimetype)
   fcn1 <- paste0("load.",format$file_name)
-  fcn2 <- ifelse(format$mimetype == "x-netcdf", paste0("load.netcdf"), paste0("load.",format$mimetype))
+  fcn2 <- paste0("load.",mimetype)
   if(exists(fcn1)){
     fcn <- match.fun(fcn1)
   }else if(exists(fcn2)){
@@ -27,35 +29,43 @@ load.data <- function(data.path, format, start_year = NA, end_year=NA, site=NA, 
     logger.warn("no load data for current mimetype - converting using browndog")
   }
   
-  out <- fcn(data.path, format, site, format$vars$orig_name[c(vars.used.index,time.row)])
+  out <- fcn(data.path, format, site, format$vars$bety_name[c(vars.used.index,time.row)])
   
   # Convert loaded data to the same standard varialbe names and units
   
   vars_used <- format$vars[vars.used.index,]
   
   for(i in 1:nrow(vars_used)){
-    col <- names(out)==vars_used$orig_name[i]
-    if(vars_used$orig_units[i] == vars_used$pecan_units[i]){
+    col <- names(out)==vars_used$bety_name[i]
+    if(vars_used$bety_units[i] == vars_used$pecan_units[i]){
       print("match")
       colnames(out)[col] <- vars_used$pecan_name[i]
     }else{
       x <- as.matrix(out[col])
-      u1 = vars_used$orig_units[i]
+      u1 = vars_used$bety_units[i]
       u2 = vars_used$pecan_units[i]
       if(udunits2::ud.are.convertible(u1,u2)){
-        print(sprintf("convert %s %s to %s %s", vars_used$orig_name[i], vars_used$orig_units[i],
+        print(sprintf("convert %s %s to %s %s", vars_used$bety_name[i], vars_used$bety_units[i],
                       vars_used$pecan_name[i], vars_used$pecan_units[i]))
         out[col] <- udunits2::ud.convert(x,u1,u2)[[1]]
         colnames(out)[col] <- vars_used$pecan_name[i]
-      }else{logger.error("Units cannot be converted")} #This error should probably be thrown much earlier, like in query.format.vars - will move it eventually
+      }else if(misc.are.convertible(u1,u2)){ 
+        print(sprintf("convert %s %s to %s %s", vars_used$bety_name[i], u1,
+                      vars_used$pecan_name[i], u2))
+        # this conversion will be used often I think, what would be the proper way to implement?
+        out[col] <- misc.convert(x, u1, u2) 
+        colnames(out)[col] <- vars_used$pecan_name[i]
+      }else{
+        logger.error("Units cannot be converted")} #This error should probably be thrown much earlier, like in query.format.vars - will move it eventually
     }
   }
   
-  # Need a much more spohisticated approach to converting into time format. 
-  y <- out[,names(out)==format$vars$orig_name[time.row]]
+  # Need a much more sophisticated approach to converting into time format. 
+  if(!is.null(time.row)){
+    y <- out[,names(out)==format$vars$orig_name[time.row]]
+    out$posix <- strptime(apply(y,1,function(x) paste(x,collapse=" ")),format=paste(format$vars$storage_type[time.row], collapse=" "))
+  } 
   
-  out$posix <- strptime(apply(y,1,function(x) paste(x,collapse=" ")),format=paste(format$vars$storage_type[time.row], collapse=" "))
-
   
   return(out) 
 }
