@@ -44,7 +44,7 @@ pda.bayesian.tools <- function(settings, params.id=NULL, param.names=NULL, prior
   
   ## Load priors
   temp <- pda.load.priors(settings, con)
-  prior <- temp$prior
+  prior <- temp$prior[[1]]
   settings <- temp$settings
   pname <-  rownames(prior) 
   n.param.all  <- nrow(prior)
@@ -61,7 +61,7 @@ pda.bayesian.tools <- function(settings, params.id=NULL, param.names=NULL, prior
   }
   
   ## Select parameters to constrain
-  prior.ind <- which(rownames(prior) %in% settings$assim.batch$param.names)
+  prior.ind <- which(rownames(prior) %in% settings$assim.batch$param.names[[1]])
   n.param <- length(prior.ind)
   
   ## NOTE: The listed samplers here require more than 1 parameter for now because of the way their cov is calculated 
@@ -88,17 +88,29 @@ pda.bayesian.tools <- function(settings, params.id=NULL, param.names=NULL, prior
   parm <- sapply(prior.fn$qprior,eval,list(p=0.5))
   names(parm) <- pname
   
+  # Convert parm to a list of 1-row data frame 
+  if(is.null(dim(parm))) {
+    pnames <- names(parm)
+    run.params <- as.data.frame(matrix(parm, nrow=1))
+    names(run.params) <- pnames
+  }
+  run.params=list(run.params)
+  
   ## Create prior class object for BayesianTools
   bt.prior <- pda.create.btprior(prior[prior.ind,])
+  
+  #PROFOUND RUN
+  bt.prior <- createUniformPrior(lower = prior[prior.ind,2], upper = prior[prior.ind,3])
+  
   
   ## Create log-likelihood function for createbayesianSetup{BayesianTools}
   
   bt.likelihood <- function(x){
-    parm[prior.ind] <- x
+    run.params[[1]][prior.ind] <- x
     
     now <- format(Sys.time(), "%Y%m%d%H%M%OS3")
     
-    run.id <- pda.init.run(settings, con, my.write.config, workflow.id, parm, n=1, run.names=paste("run", now, sep="."))
+    run.id <- pda.init.run(settings, con, my.write.config, workflow.id, run.params, n=1, run.names=paste("run", now, sep="."))
     
     ## Start model run
     start.model.runs(settings,settings$database$bety$write)
@@ -114,6 +126,10 @@ pda.bayesian.tools <- function(settings, params.id=NULL, param.names=NULL, prior
   
   ## Create bayesianSetup object for BayesianTools
   bayesianSetup <- createBayesianSetup(bt.likelihood, bt.prior)
+  
+  #PROFOUND RUN
+  bayesianSetup <- createBayesianSetup(bt.likelihood, bt.prior, best = bt.prior$best, 
+                                names = pname[prior.ind], parallel = FALSE)
   
   
   ## Set starting values and numPars
