@@ -112,8 +112,8 @@ model2netcdf.LPJGUESS <- function(outdir, sitelat, sitelon, start_date, end_date
     
     
     ### Output netCDF data
-    nc <- nc_create(file.path(outdir, paste(y,"nc", sep=".")), var)
-    varfile <- file(file.path(outdir, paste(y, "nc", "var", sep=".")), "w")
+    nc <- nc_create(file.path(outdir, sprintf("%04d%s",y, ".nc")), var)
+    varfile <- file(file.path(outdir, sprintf("%04d%s",y, ".nc")), "w")
     for(i in 1:length(var)){
       #print(i)
       ncvar_put(nc,var[[i]],output[[i]])  

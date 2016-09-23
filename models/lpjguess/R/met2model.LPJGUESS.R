@@ -51,8 +51,8 @@ met2model.LPJGUESS <- function(in.path, in.prefix, outfolder, start_date, end_da
   results <- data.frame(file = unlist(out.files.full),
                         host = fqdn(),
                         mimetype ='application/x-netcdf',
-                        formatname = 'lpj-guess.metfile' ,
-                        startdate = start_date ,
+                        formatname = 'lpj-guess.metfile',
+                        startdate = start_date,
                         enddate = end_date,
                         dbfile.name = unlist(out.file),
                         stringsAsFactors = FALSE)
@@ -128,7 +128,12 @@ met2model.LPJGUESS <- function(in.path, in.prefix, outfolder, start_date, end_da
       ncatt_put(nc=ncfile, varid="lat",attname="axis", "Y")
       ncatt_put(nc=ncfile, varid="lat",attname="standard_name", "latitude")
 
-      ncatt_put(nc=ncfile, varid="time",attname="calendar", "gregorian")
+      if(start_year < 1583){
+        ncatt_put(nc=ncfile, varid="time",attname="calendar", "proleptic_gregorian")
+      }else{
+        ncatt_put(nc=ncfile, varid="time",attname="calendar", "gregorian")
+      }
+      
 
       nc_close(ncfile)
     }
