@@ -105,7 +105,7 @@ read.output <- function(runid, outdir, start.year=NA,
   # create list of *.nc years
   nc.years <- as.vector(unlist(strsplit(list.files(path = outdir, pattern="\\.nc$", full.names=FALSE),".nc")))
   # select only those *.nc years requested by user
-  keep <- which(nc.years >= as.numeric(start.year) & nc.years <= as.numeric(end.year))
+  keep <- which(as.numeric(nc.years) >= as.numeric(start.year) & as.numeric(nc.years) <= as.numeric(end.year))
   ncfiles <- list.files(path = outdir, pattern="\\.nc$", full.names=TRUE)
   ncfiles <- ncfiles[keep]
   # throw error if no *.nc files selected/availible
