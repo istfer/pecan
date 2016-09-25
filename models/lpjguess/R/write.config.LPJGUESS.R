@@ -100,6 +100,8 @@ write.insfile.LPJGUESS <- function(settings, trait.values, rundir, outdir, run.i
   guessins <- readLines(con=system.file("template.ins", package = "PEcAn.LPJGUESS"), n=-1)
   paramsins <- readLines(con=system.file("pecan.ins", package = "PEcAn.LPJGUESS"), n=-1)
   
+  paramsins <- gsub("@STATE_FILE@", outdir, paramsins)
+  
   # cp the grid indices file
   grid.file <- file.path(settings$host$rundir, "gridind.txt")
   gridind = system.file("gridind.txt", package="PEcAn.LPJGUESS")
@@ -123,7 +125,6 @@ write.insfile.LPJGUESS <- function(settings, trait.values, rundir, outdir, run.i
       paramsins[i] <- gsub("\\s*\\w*$", paste0(" ", gsub("^[^:]*.@", "", paramsins[i])), gsub(".@.*","", paramsins[i]))
     }
   }
-  
   
   
   # write clim file names
