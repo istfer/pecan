@@ -26,6 +26,7 @@ pda.emulator <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
                   prior.id=prior.id, chain=chain, iter=iter, adapt=adapt, 
                   adj.min=adj.min, ar.target=ar.target, jvar=jvar, n.knot=n.knot)
     
+    n.knot <- as.numeric(settings$assim.batch$n.knot)
     
     extension.check <- settings$assim.batch$extension == "longer"
     
@@ -94,7 +95,7 @@ pda.emulator <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
   ## ------------------------------------ Emulator ------------------------------------ ##
   ## Propose parameter knots (X) for emulator design
   knots.list <- lapply(seq_along(settings$pfts),
-                       function(x) pda.generate.knots(settings$assim.batch$n.knot, n.param.all[x], prior.ind[[x]], prior.fn[[x]], pname[[x]]))
+                       function(x) pda.generate.knots(n.knot, n.param.all[x], prior.ind[[x]], prior.fn[[x]], pname[[x]]))
 
   knots.params <- lapply(knots.list, `[[`, "params")
   knots.probs <- lapply(knots.list, `[[`, "probs")
@@ -123,7 +124,7 @@ pda.emulator <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
                          as.numeric(settings$assim.batch$knot.par),
                          0.75)
                          
-      n.post.knots <- floor(knot.par * settings$assim.batch$n.knot)
+      n.post.knots <- floor(knot.par * n.knot)
       
       knots.list.temp <- lapply(seq_along(settings$pfts),
                            function(x) pda.generate.knots(n.post.knots, n.param.all[x], prior.ind[[x]], prior.fn[[x]], pname[[x]]))
@@ -131,7 +132,7 @@ pda.emulator <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
 
       for(i in seq_along(settings$pfts)){
         # mixture of knots 
-        knots.list[[i]]$params <- rbind(knots.params[[i]][sample(nrow(knots.params[[i]]), (settings$assim.batch$n.knot - n.post.knots)),], 
+        knots.list[[i]]$params <- rbind(knots.params[[i]][sample(nrow(knots.params[[i]]), (n.knot - n.post.knots)),], 
                                    knots.list.temp[[i]]$params)
         
       }
@@ -160,18 +161,17 @@ pda.emulator <- function(settings, params.id=NULL, param.names=NULL, prior.id=NU
   
   if(run.block){
     ## Set up runs and write run configs for all proposed knots 
-    run.ids <- pda.init.run(settings, con, my.write.config, workflow.id, knots.params, 
-                            n=settings$assim.batch$n.knot, 
-                            run.names=paste0(settings$assim.batch$ensemble.id,".knot.",1:settings$assim.batch$n.knot))
+    run.ids <- pda.init.run(settings, con, my.write.config, workflow.id, knots.params, n = n.knot, 
+                            run.names = paste0(settings$assim.batch$ensemble.id, ".knot.", 1:n.knot))
     
     ## start model runs
     start.model.runs(settings,settings$database$bety$write)
     
     ## Retrieve model outputs, calculate likelihoods (and store them in database)
-    LL.0 <- rep(NA, settings$assim.batch$n.knot)
+    LL.0 <- rep(NA, n.knot)
     model.out <- list()
     
-    for(i in 1:settings$assim.batch$n.knot) {
+    for(i in 1:n.knot) {
       ## read model outputs
       model.out[[i]] <- pda.get.model.output(settings, run.ids[i], inputs)
       
