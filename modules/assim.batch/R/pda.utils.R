@@ -602,7 +602,7 @@ pda.get.model.output <- function(settings, run.id, inputs) {
     model.raw <- as.data.frame(read.output(run.id, outdir = file.path(settings$host$outdir, run.id),
                                        start.year, end.year, variables = vars))
 
-    if(length(model) == 0) {   # Probably indicates model failed entirely
+    if(length(model.raw) == 0) {   # Probably indicates model failed entirely
       return(NA)
     }
     
@@ -638,11 +638,11 @@ pda.get.model.output <- function(settings, run.id, inputs) {
   
 
     
-    dat <- align.data(model_full = model, obvs_full = inputs[[k]]$data, dat_vars = vars.used, 
+    dat <- align.data(model_full = model, obvs_full = inputs[[k]]$data, dat_vars = data.vars, 
                       start_year = start.year, end_year = end.year)
   
-    model.out[[k]] <- dat[,colnames(dat) %in% paste0(vars.used,".m"), drop = FALSE]
-    colnames(model.out[[k]]) <- vars.used
+    model.out[[k]] <- dat[,colnames(dat) %in% paste0(data.vars,".m"), drop = FALSE]
+    colnames(model.out[[k]]) <- data.vars
   }
   
   return(model.out)
