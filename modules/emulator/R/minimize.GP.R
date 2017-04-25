@@ -119,16 +119,14 @@ calculate.prior <- function(samples, priors) {
 get.y <- function(gp, xnew, n.of.obs, llik.fn, priors, settings) {
   
   SS <- numeric(length(gp))
-    
+  
   X <- matrix(unlist(xnew), nrow = 1, byrow = TRUE)
-    
+  
   for(igp in seq_along(gp)){
-    Y <- GPfit::predict.GP(gp[[igp]], X[, 1:ncol(gp[[igp]]$X), drop=FALSE])
-    # likelihood <- Y$Y_hat
-    # likelihood <- rnorm(1, Y$Y_hat, sqrt(Y$MSE))
-    SS[igp] <- rnorm(1, Y$Y_hat, sqrt(Y$MSE))
+    Y <- mlegp::predict.gp(gp[[igp]], newData = X[, 1:ncol(gp[[igp]]$X), drop=FALSE], se.fit = TRUE) 
+    SS[igp] <- rnorm(1, Y$fit, Y$se.fit)
   }
-
+  
   llik.par <- pda.calc.llik.par(settings, n.of.obs, SS)
   likelihood <- pda.calc.llik(SS, llik.fn, llik.par)
   
@@ -137,9 +135,9 @@ get.y <- function(gp, xnew, n.of.obs, llik.fn, priors, settings) {
   
   # return likelihood parameters
   par <- unlist(sapply(llik.par, `[[` , "par"))
-
+  
   return(list(posterior.prob = posterior.prob, par = par))
-
+  
 } # get.y
 
 # is.accepted <- function(ycurr, ynew, format='lin'){ z <- exp(ycurr-ynew) acceptance <-

@@ -85,7 +85,6 @@ pda.emulator <- function(settings, params.id = NULL, param.names = NULL, prior.i
   pname       <- lapply(prior.list, rownames)
   n.param.all <- sapply(prior.list, nrow)
   
-
   inputs      <- load.pda.data(settings, bety)
   n.input     <- length(inputs)
   
@@ -314,6 +313,8 @@ pda.emulator <- function(settings, params.id = NULL, param.names = NULL, prior.i
       
     ## GPfit optimization routine assumes that inputs are in [0,1] Instead of drawing from parameters,
     ## we draw from probabilities
+    # UPDATE: now I change to use mlegp package, so I can now draw from parameter space
+    # but for testing I'll continue as it is
     knots.probs.all <- do.call("cbind", knots.probs)
 
     X <- knots.probs.all[, prior.ind.all, drop = FALSE]
@@ -387,7 +388,7 @@ pda.emulator <- function(settings, params.id = NULL, param.names = NULL, prior.i
       SS <- SS.list
     }
       
-    logger.info(paste0("Using 'GPfit' package for Gaussian Process Model fitting."))
+    logger.info(paste0("Using 'mlegp' package for Gaussian Process Model fitting."))
     ## Generate emulator on SS, return a list
     
     # prepare for parallelization
@@ -397,8 +398,9 @@ pda.emulator <- function(settings, params.id = NULL, param.names = NULL, prior.i
     cl <- parallel::makeCluster(ncores, type="FORK")
     
     ## Parallel fit for GPs
-    GPmodel <- parallel::parLapply(cl, SS, function(x) GPfit::GP_fit(X = x[, -ncol(x), drop = FALSE], Y = x[, ncol(x), drop = FALSE]))
-    #GPmodel <- lapply(SS, function(x) GPfit::GP_fit(X = x[, -ncol(x), drop = FALSE], Y = x[, ncol(x), drop = FALSE]))
+    GPmodel <- parallel::parLapply(cl, SS, function(x) mlegp::mlegp(X = x[, -ncol(x), drop = FALSE], Z = x[, ncol(x), drop = FALSE], verbose = 0))
+    # GPmodel <- lapply(SS, function(x) mlegp::mlegp(X = x[, -ncol(x), drop = FALSE], Z = x[, ncol(x), drop = FALSE], verbose = 0))
+
     parallel::stopCluster(cl)
     
     gp <- GPmodel
@@ -444,6 +446,7 @@ pda.emulator <- function(settings, params.id = NULL, param.names = NULL, prior.i
 
   
   ## Change the priors to unif(0,1) for mcmc.GP
+  # UPDATE : will not need this soon
   prior.all[prior.ind.all, ] <- rep(c("unif", 0, 1, "NA"), each = length(prior.ind.all))
 
   ## Set up prior functions accordingly
