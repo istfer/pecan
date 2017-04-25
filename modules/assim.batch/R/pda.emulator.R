@@ -313,11 +313,12 @@ pda.emulator <- function(settings, params.id = NULL, param.names = NULL, prior.i
       
     ## GPfit optimization routine assumes that inputs are in [0,1] Instead of drawing from parameters,
     ## we draw from probabilities
+    # knots.probs.all <- do.call("cbind", knots.probs)
+    # X <- knots.probs.all[, prior.ind.all, drop = FALSE]
+    
     # UPDATE: now I change to use mlegp package, so I can now draw from parameter space
-    # but for testing I'll continue as it is
-    knots.probs.all <- do.call("cbind", knots.probs)
-
-    X <- knots.probs.all[, prior.ind.all, drop = FALSE]
+    knots.params.all <- do.call("cbind", knots.params)
+    X <- knots.params.all[, prior.ind.all, drop = FALSE]
       
     if(!is.null(sf)){
       X <- cbind(X, probs.sf)
@@ -343,8 +344,10 @@ pda.emulator <- function(settings, params.id = NULL, param.names = NULL, prior.i
       if(unlist(any.mgauss)[inputi] == "multipGauss") {
           
           # if yes, then we need to include bias term in the emulator
-          bias.probs <- bias.list$bias.probs
-          biases <- c(t(bias.probs[[bc]]))
+          #bias.probs <- bias.list$bias.probs
+          #biases <- c(t(bias.probs[[bc]]))
+          bias.params <- bias.list$bias.params
+          biases <- c(t(bias.params[[bc]]))
           bc <- bc + 1
             
           # replicate model parameter set per bias parameter
@@ -446,19 +449,16 @@ pda.emulator <- function(settings, params.id = NULL, param.names = NULL, prior.i
 
   
   ## Change the priors to unif(0,1) for mcmc.GP
-  # UPDATE : will not need this soon
-  prior.all[prior.ind.all, ] <- rep(c("unif", 0, 1, "NA"), each = length(prior.ind.all))
+  # UPDATE : don't need this anymore
+  # prior.all[prior.ind.all, ] <- rep(c("unif", 0, 1, "NA"), each = length(prior.ind.all))
 
   ## Set up prior functions accordingly
   prior.fn.all <- pda.define.prior.fn(prior.all)
   
   # define range to make sure mcmc.GP doesn't propose new values outside
-  rng <- matrix(c(sapply(prior.fn.all$qprior[prior.ind.all],
-                         eval,
-                         list(p = 0)), 
-                  sapply(prior.fn.all$qprior[prior.ind.all], 
-                         eval, 
-                         list(p = 1))), nrow = length(prior.ind.all))
+  rng <- matrix(c(sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 1e-05)),
+                  sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 0.99999))),
+                nrow = sum(n.param))
   
   if (run.normal | run.round) {
     
@@ -540,14 +540,16 @@ pda.emulator <- function(settings, params.id = NULL, param.names = NULL, prior.i
       # retrieve rownames separately to get rid of var_name* structures
       prior.all.rownames <- unlist(sapply(prior.list, rownames))
       
-      ## Convert probabilities back to parameter values
-      for (i in seq_along(prior.ind.all.ns)) {
-        sf.check <- prior.all.rownames[prior.ind.all.ns][i]
-        idx <- grep(sf.check, rownames(prior.all)[prior.ind.all])
-        m[, i] <- eval(prior.fn.all$qprior[prior.ind.all.ns][[i]], 
-                       list(p = mcmc.out[[c]]$mcmc.samp[, idx]))
-      }
+      ## No need for this anymore
+      # ## Convert probabilities back to parameter values
+      # for (i in seq_along(prior.ind.all.ns)) {
+      #   sf.check <- prior.all.rownames[prior.ind.all.ns][i]
+      #   idx <- grep(sf.check, rownames(prior.all)[prior.ind.all])
+      #   m[, i] <- eval(prior.fn.all$qprior[prior.ind.all.ns][[i]], 
+      #                  list(p = mcmc.out[[c]]$mcmc.samp[, idx]))
+      # }
       
+    m <- mcmc.out[[c]]$mcmc.samp
     colnames(m) <- prior.all.rownames[prior.ind.all.ns]
     mcmc.samp.list[[c]] <- m
     
