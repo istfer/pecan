@@ -77,8 +77,7 @@ model2netcdf.ED2 <- function(outdir, sitelat, sitelon, start_date, end_date) {
       rflag <- ed.res.flag[i]
       fcnx  <- paste0("read_", gsub("-", "", rflag), "_files")
       fcn   <- match.fun(fcnx)
-      out_list[[rflag]] <- fcn(yr = y, yfiles = ylist[[rflag]], tfiles = flist[[rflag]], 
-                               outdir, start_date, end_date)
+      out_list[[rflag]] <- fcn(yr = y, ylist[[rflag]], flist[[rflag]], outdir, start_date, end_date)
     }
     
 
@@ -90,7 +89,7 @@ model2netcdf.ED2 <- function(outdir, sitelat, sitelon, start_date, end_date) {
     nc_var <- list()
     for(i in seq_along(out_list)){
       rflag <- ed.res.flag[i]
-      fcnx  <- paste0("write_", gsub("-", "", rflag), "_values")
+      fcnx  <- paste0("put_", gsub("-", "", rflag), "_values")
       fcn   <- match.fun(fcnx)
       nc_var <- fcn(nc_var, out = out_list[[rflag]], sitelat, sitelon, start_date, end_date)
     }
@@ -120,10 +119,10 @@ model2netcdf.ED2 <- function(outdir, sitelat, sitelon, start_date, end_date) {
 
 ##-------------------------------------------------------------------------------------------------#
 
-# Function for reading "tower" files
+# Function for reading -T- files
 read_T_files <- function(yr, yfiles, tfiles, outdir, start_date, end_date){
   
-  PEcAn.utils::logger.info(paste0("Reading T files..."))
+  PEcAn.utils::logger.info(paste0("Reading T file..."))
   
   # add
   add <- function(dat, col, row, year) {
@@ -555,9 +554,9 @@ read_T_files <- function(yr, yfiles, tfiles, outdir, start_date, end_date){
 
 ##-------------------------------------------------------------------------------------------------#
 
-# Function for writing "tower" values
+# Function for put -T- values to nc_var list
 
-write_T_values <- function(nc_var, out, sitelat, sitelon, start_date, end_date){
+put_T_values <- function(nc_var, out, sitelat, sitelon, start_date, end_date){
   
   # by design we start with T files but still
   s <- length(nc_var)
@@ -681,4 +680,130 @@ write_T_values <- function(nc_var, out, sitelat, sitelon, start_date, end_date){
   
   return(nc_var)
   
-} # write_T_values
+} # put_T_values
+
+
+##-------------------------------------------------------------------------------------------------#
+
+# Function for reading -E- files
+read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date){
+  
+  ysel <- which(yr == yfiles)
+  
+  # lets make it work for a subset of vars fist
+  vars <- c("DDBH", "MMEAN_MORT_RATE_CO", "NPLANT", 'PFT', 'DBH', 'NPLANT', 'AREA', 'PACO_N')
+  
+  ed.dat <- list()
+  
+  for(i in ysel){
+    nc <- nc_open(efiles[i])
+    ls.i <- names(nc$var)
+    if(!is.null(vars)) ls.i <- ls.i[ ls.i %in% vars ]
+    
+    if(length(ed.dat) == 0){
+      for(j in 1:length(ls.i)){
+        ed.dat[[j]] <- list()
+        ed.dat[[j]][[1]] <- ncvar_get(nc,ls.i[j])
+      }
+      names(ed.dat) <- ls.i
+    } else {
+      t <- length(ed.dat[[1]]) + 1
+      for(j in 1:length(ls.i)){
+        k <- which(names(ed.dat) == ls.i[j])
+        if(length(k)>0){
+          ed.dat[[k]][[t]] <- ncvar_get(nc,ls.i[j])
+        } else { ## add a new ed.datiable. ***Not checked (shouldn't come up?)
+          ed.dat[[length(ed.dat)+1]] <- list()    # Add space for new ed.datiable
+          ed.dat[[length(ed.dat)]][1:(t-1)] <- NA # Give NA for all previous time points
+          ed.dat[[length(ed.dat)]][t] <- ncvar_get(nc,ls.i[j]) # Assign the value of the new ed.datiable at this time point
+          names(ed.dat)[length(ed.dat)] <- ls.i[j]
+        }
+      }      
+    }
+    nc_close(nc)
+  }
+  
+  # hard-coded for now
+  dbh.breaks <- 0 # Will represent a single DBH bin from 0 - Infinity cm
+  pfts <- 1:20 # There are actually only 19 PFTs in ED currently, but this futureproofing won't hurt
+
+  ndbh <- length(dbh.breaks)
+  npft <- length(pfts)
+  varnames <- names(ed.dat)
+  
+  out <- list()
+  for(varname in varnames) {
+    out[[varname]] <- array(NA, c(length(ysel), ndbh, npft))
+  }
+  
+  # Aggregate over PFT and DBH bins  
+  i=j=1; k=2 
+  for(i in ysel) {
+    # Get additional cohort-level variables required
+    pft        <- ed.dat$PFT[[i]]
+    dbh        <- ed.dat$DBH[[i]]      # cm / plant
+    plant.dens <- ed.dat$NPLANT[[i]]   # plant / m2
+    
+    # Get patch areas. In general patches aren't the same area, so this is needed to area-weight when averaging up to site level. Requires minor finnagling to convert patch-level AREA to a cohort-length variable. 
+    patch.area <- ed.dat$AREA[[i]]    # m2  -- one entry per patch
+    pacoN      <- ed.dat$PACO_N[[i]]  # number of cohorts per patch
+    patch.area <- rep(patch.area, pacoN)  # patch areas, repped out to one entry per cohort
+    
+    # Now can get number of plants per cohort, which will be used for weighting. Note that area may have been (often/always is?) a proportion of total site area, rather than an absolute measure. In which case this nplant is a tiny and meaningless number in terms of actual number of plants. But that doesn't matter for weighting purposes. 
+    nplant <- plant.dens * patch.area
+    
+    # Get index of DBH bin each cohort belongs to      
+    dbh.bin <- sapply(dbh, function(x) which.min(x>c(dbh.breaks,Inf))) - 1
+    
+    
+    # For each PFT x DBH bin, average variables of interest, weighting by # of plants. Not all ED cohort variables are in per-plant units. This code would not be applicable to them without modification.
+    # However, it does handle two special cases. For NPLANT, it performs no weighting, but simply sums over cohorts in the PFT x DBH bin. For MMEAN_MORT_RATE_CO, it first sums over columns representing different mortality types first, then proceeds with weighting. 
+    for(j in 1:ndbh) {
+      for(k in 1:npft) {
+        ind <- (dbh.bin==j) & (pft == pfts[k])
+        
+        if(any(ind)) {
+          for(varname in varnames) {
+            if(varname == "NPLANT") {
+              # Return the total number of plants in the bin
+              out$NPLANT[i,j,k] <- sum(nplant[ind])
+            } else if(varname == "MMEAN_MORT_RATE_CO") {
+              # Sum over all columns 
+              mort = apply(ed.dat$MMEAN_MORT_RATE_CO[[i]][ind,, drop=F], 1, sum, na.rm=T)
+              out$MMEAN_MORT_RATE_CO[i,j,k] <- sum(mort * nplant[ind]) / sum(nplant[ind])
+            } else {
+              # For all others, just get mean weighted by nplant
+              out[[varname]][i,j,k] <- sum(ed.dat[[varname]][[i]][ind] * nplant[ind]) / sum(nplant[ind])
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  
+  # Aggregate over years. There are probably faster ways.
+  for(varname in varnames) {
+    tmp <-  array(NA, c(ndbh, npft))
+    tmp <- colMeans(out[[varname]][,,, drop=FALSE], na.rm=TRUE, dims=1)
+    out[[varname]] = tmp
+    dimnames(out[[varname]]) <- list(dbhLowBound=dbh.breaks, pft=pfts)
+  }
+  
+  
+  
+  return(out)
+  
+} # read_E_files
+
+
+##-------------------------------------------------------------------------------------------------#
+
+# Function for put -E- values to nc_var list
+
+put_E_values <- function(nc_var, out, sitelat, sitelon, start_date, end_date){
+  
+  return(nc_var)
+  
+} # put_E_values
+
