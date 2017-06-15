@@ -2,7 +2,7 @@
 % Please edit documentation in R/model2netcdf.ED2.R
 \name{model2netcdf.ED2}
 \alias{model2netcdf.ED2}
-\title{Code to convert ED2's -T- HDF5 output into netCDF format}
+\title{Code to convert ED2's -T- and -E- HDF5 output into netCDF format}
 \usage{
 model2netcdf.ED2(outdir, sitelat, sitelon, start_date, end_date)
 }
