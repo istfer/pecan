@@ -64,6 +64,20 @@ model2netcdf.ED2 <- function(outdir, sitelat, sitelon, start_date, end_date) {
     names(ylist) <- ed.res.flag
   }
   
+  # how to handle ALL PFT case?
+  # thinking about sensitivity, which pft is this? should we write that pft only?
+  run.info <- readLines(file.path(outdir,"README.txt"))
+  is.sens <- grepl("sensitivity", run.info[1])
+  if(is.sens){
+    pft.name <- gsub("pft name    : ", "", run.info[4])
+    data(pftmapping, package = 'PEcAn.ED2')
+    pft.number <- pftmapping$ED[which(pftmapping == pft.name)]
+  }else{
+    pft.number <- NULL
+  }
+  
+  
+  
   out_list <- vector("list", length(ed.res.flag)) 
   names(out_list) <- ed.res.flag
   
@@ -77,13 +91,23 @@ model2netcdf.ED2 <- function(outdir, sitelat, sitelon, start_date, end_date) {
       rflag <- ed.res.flag[i]
       fcnx  <- paste0("read_", gsub("-", "", rflag), "_files")
       fcn   <- match.fun(fcnx)
-      out_list[[rflag]] <- fcn(yr = y, ylist[[rflag]], flist[[rflag]], outdir, start_date, end_date)
+      out_list[[rflag]] <- fcn(yr = y, ylist[[rflag]], flist[[rflag]], outdir, start_date, end_date, pft.number)
+    }
+
+    if (y == strftime(start_date, "%Y")) {
+      begins <- as.numeric(strftime(start_date, "%j")) - 1
+    } else {
+      begins <- 0
     }
     
-
-
-
-    PEcAn.utils::logger.info(paste0("----- Writing year: ", y))
+    if (y == strftime(end_date, "%Y")) {
+      ends <- as.numeric(strftime(end_date, "%j"))
+    } else {
+      ends <- as.numeric(strftime(paste0(y, "-12-31"), "%j")) 
+    }
+    
+    lat <- ncdim_def("lat", "degrees_north", vals = as.numeric(sitelat), longname = "station_latitude")
+    lon <- ncdim_def("lon", "degrees_east", vals = as.numeric(sitelon), longname = "station_longitude")
     
     # ----- put values to nc_var list   
     nc_var <- list()
@@ -91,7 +115,8 @@ model2netcdf.ED2 <- function(outdir, sitelat, sitelon, start_date, end_date) {
       rflag <- ed.res.flag[i]
       fcnx  <- paste0("put_", gsub("-", "", rflag), "_values")
       fcn   <- match.fun(fcnx)
-      nc_var <- fcn(nc_var, out = out_list[[rflag]], sitelat, sitelon, start_date, end_date)
+      nc_var <- fcn(yr = y, nc_var = nc_var, out = out_list[[rflag]], lat = lat, lon = lon, 
+                    begins = begins, ends = ends, pft.number = pft.number)
     }
     
     # SLZ specific hack until I figure that out
@@ -120,9 +145,9 @@ model2netcdf.ED2 <- function(outdir, sitelat, sitelon, start_date, end_date) {
 ##-------------------------------------------------------------------------------------------------#
 
 # Function for reading -T- files
-read_T_files <- function(yr, yfiles, tfiles, outdir, start_date, end_date){
+read_T_files <- function(yr, yfiles, tfiles, outdir, start_date, end_date, pft.number){
   
-  PEcAn.utils::logger.info(paste0("Reading T file..."))
+  PEcAn.utils::logger.info(paste0("*** Reading -T- file ***"))
   
   # add
   add <- function(dat, col, row, year) {
@@ -556,7 +581,7 @@ read_T_files <- function(yr, yfiles, tfiles, outdir, start_date, end_date){
 
 # Function for put -T- values to nc_var list
 
-put_T_values <- function(nc_var, out, sitelat, sitelon, start_date, end_date){
+put_T_values <- function(yr, nc_var, out, lat, lon, begins, ends, ...){
   
   # by design we start with T files but still
   s <- length(nc_var)
@@ -581,23 +606,10 @@ put_T_values <- function(nc_var, out, sitelat, sitelon, start_date, end_date){
   
   # ----- define ncdf dimensions
   
-  if (y == strftime(start_date, "%Y")) {
-    begins <- as.numeric(strftime(start_date, "%j")) - 1
-  } else {
-    begins <- 0
-  }
-  
-  if (y == strftime(end_date, "%Y")) {
-    ends <- as.numeric(strftime(end_date, "%j"))
-  } else {
-    ends <- as.numeric(strftime(paste0(y, "-12-31"), "%j")) 
-  }
-  
-  t <- ncdim_def(name = "time", units = paste0("days since ", y, "-01-01 00:00:00"), 
+  t <- ncdim_def(name = "time", units = paste0("days since ", yr, "-01-01 00:00:00"), 
                  vals = seq(begins, ends, length.out = length(out[[1]])), 
                  calendar = "standard", unlim = TRUE)
-  lat <- ncdim_def("lat", "degrees_north", vals = as.numeric(sitelat), longname = "station_latitude")
-  lon <- ncdim_def("lon", "degrees_east", vals = as.numeric(sitelon), longname = "station_longitude")
+
   
   slzdata <- out$SLZ
   dz <- diff(slzdata)
@@ -686,17 +698,24 @@ put_T_values <- function(nc_var, out, sitelat, sitelon, start_date, end_date){
 ##-------------------------------------------------------------------------------------------------#
 
 # Function for reading -E- files
-read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date){
+read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date, pft.number){
+  
+  PEcAn.utils::logger.info(paste0("*** Reading -E- file ***"))
   
   ysel <- which(yr == yfiles)
   
   # lets make it work for a subset of vars fist
-  vars <- c("DDBH", "MMEAN_MORT_RATE_CO", "NPLANT", 'PFT', 'DBH', 'NPLANT', 'AREA', 'PACO_N')
+  #varnames <- c("DBH", "DDBH_DT", "MMEAN_MORT_RATE_CO", "NPLANT")
+  varnames <- c("DBH", "DDBH_DT", "NPLANT")
+  
+  # List of vars to extract includes the requested one, plus others needed below. 
+  vars <- c(varnames, 'PFT', 'AREA', 'PACO_N')
+  
   
   ed.dat <- list()
   
   for(i in ysel){
-    nc <- nc_open(efiles[i])
+    nc <- nc_open(file.path(outdir, efiles[i]))
     ls.i <- names(nc$var)
     if(!is.null(vars)) ls.i <- ls.i[ ls.i %in% vars ]
     
@@ -721,15 +740,16 @@ read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date){
       }      
     }
     nc_close(nc)
-  }
+  } # enf ysel-loop
   
-  # hard-coded for now
+  # IF: hard-coded for now, in order to pass it from settings job.sh needs to be modified by write.configs?
+  # Also, sensitivity.analysis wants 1 value per pft/parameter/quantile
   dbh.breaks <- 0 # Will represent a single DBH bin from 0 - Infinity cm
-  pfts <- 1:20 # There are actually only 19 PFTs in ED currently, but this futureproofing won't hurt
+
+  pfts <- 1:20 # RK: There are actually only 19 PFTs in ED currently, but this futureproofing won't hurt
 
   ndbh <- length(dbh.breaks)
   npft <- length(pfts)
-  varnames <- names(ed.dat)
   
   out <- list()
   for(varname in varnames) {
@@ -738,7 +758,7 @@ read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date){
   
   # Aggregate over PFT and DBH bins  
   i=j=1; k=2 
-  for(i in ysel) {
+  for(i in seq_along(ysel)) {
     # Get additional cohort-level variables required
     pft        <- ed.dat$PFT[[i]]
     dbh        <- ed.dat$DBH[[i]]      # cm / plant
@@ -782,13 +802,27 @@ read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date){
   }
   
   
-  # Aggregate over years. There are probably faster ways.
-  for(varname in varnames) {
-    tmp <-  array(NA, c(ndbh, npft))
-    tmp <- colMeans(out[[varname]][,,, drop=FALSE], na.rm=TRUE, dims=1)
-    out[[varname]] = tmp
-    dimnames(out[[varname]]) <- list(dbhLowBound=dbh.breaks, pft=pfts)
+  if(is.null(pft.number) | length(pft.number) != 0){ # not a sensitivity run or an ALL PFT run
+    
+    # Aggregate over years. There are probably faster ways.
+    for(varname in varnames) {
+      tmp <-  array(NA, c(ndbh, npft))
+      tmp <- colMeans(out[[varname]][,,, drop=FALSE], na.rm=TRUE, dims=1)
+      out[[varname]] = tmp
+      dimnames(out[[varname]]) <- list(dbhLowBound=dbh.breaks, pft=pfts)
+    }
+    
+  }else{ 
+    
+    # a sensitivity run, return only pft specific demography? 
+    # or maybe write them both always under different vars?
+    # e.g. DBH per pft run sensitivity analysis, something like DBH.all for keeping everything?
+    for(varname in varnames) {
+      tmp <-  out[[varname]][,,pft.number]
+      out[[varname]] = tmp
+    }
   }
+
   
   
   
@@ -801,7 +835,46 @@ read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date){
 
 # Function for put -E- values to nc_var list
 
-put_E_values <- function(nc_var, out, sitelat, sitelon, start_date, end_date){
+put_E_values <- function(yr, nc_var, out, begins, ends, pft.number, ...){
+
+  s <- length(nc_var)
+  
+  
+
+  # ----- fill list
+  
+  if(is.null(pft.number) | length(pft.number) != 0){
+    
+    # not a sensitivity run, dimensions accordingly
+    
+    d <- ncdim_def(name = "dbh.breaks", units ="bins", vals = 0)
+    p <- ncdim_def(name = "pft.number", units = "unitless", vals = 1:20)
+    
+    nc_var[[s+1]]<- ncdf4::ncvar_def("DBH", units = "cm", dim = list(d,p), missval = -999, 
+                                     longname = "Diameter at breast height")
+    nc_var[[s+2]]<- ncdf4::ncvar_def("DDBH_DT", units = "cm yr-1", dim = list(d,p), missval = -999, 
+                                     longname = "Rate of change in dbh")
+    nc_var[[s+3]]<- ncdf4::ncvar_def("NPLANT", units = "plant m-2", dim = list(d,p), missval = -999, 
+                                     longname = "Plant density")
+
+  } else {
+    
+    
+    t <- ncdim_def(name = "time", units = paste0("days since ", yr, "-01-01 00:00:00"), 
+                   vals = seq(begins, ends, length.out = length(out[[1]])), 
+                   calendar = "standard", unlim = TRUE)
+    
+    # a sensitivity run, monthly outputs per PFT
+    
+    nc_var[[s+1]]<- ncdf4::ncvar_def("DBH", units = "cm", dim = list(t), missval = -999, 
+                                     longname = "Diameter at breast height")
+    nc_var[[s+2]]<- ncdf4::ncvar_def("DDBH_DT", units = "cm yr-1", dim = list(t), missval = -999, 
+                                     longname = "Rate of change in dbh")
+    nc_var[[s+3]]<- ncdf4::ncvar_def("NPLANT", units = "plant m-2", dim = list(t), missval = -999, 
+                                     longname = "Plant density")
+  }
+
+  
   
   return(nc_var)
   
