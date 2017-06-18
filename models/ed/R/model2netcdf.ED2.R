@@ -94,8 +94,8 @@ model2netcdf.ED2 <- function(outdir, sitelat, sitelon, start_date, end_date, pft
       ends <- as.numeric(strftime(paste0(y, "-12-31"), "%j")) 
     }
     
-    lat <- ncdim_def("lat", "degrees_north", vals = as.numeric(sitelat), longname = "station_latitude")
-    lon <- ncdim_def("lon", "degrees_east", vals = as.numeric(sitelon), longname = "station_longitude")
+    lat <- ncdf4::ncdim_def("lat", "degrees_north", vals = as.numeric(sitelat), longname = "station_latitude")
+    lon <- ncdf4::ncdim_def("lon", "degrees_east", vals = as.numeric(sitelon), longname = "station_longitude")
     
     # ----- put values to nc_var list   
     nc_var <- list()
@@ -593,7 +593,7 @@ put_T_values <- function(yr, nc_var, out, lat, lon, begins, ends, ...){
   
   # ----- define ncdf dimensions
   
-  t <- ncdim_def(name = "time", units = paste0("days since ", yr, "-01-01 00:00:00"), 
+  t <- ncdf4::ncdim_def(name = "time", units = paste0("days since ", yr, "-01-01 00:00:00"), 
                  vals = seq(begins, ends, length.out = length(out[[1]])), 
                  calendar = "standard", unlim = TRUE)
 
@@ -710,14 +710,14 @@ read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date, pft.n
   ed.dat <- list()
   
   for(i in ysel){
-    nc <- nc_open(file.path(outdir, efiles[i]))
+    nc <- ncdf4::nc_open(file.path(outdir, efiles[i]))
     ls.i <- names(nc$var)
     if(!is.null(vars)) ls.i <- ls.i[ ls.i %in% vars ]
     
     if(length(ed.dat) == 0){
       for(j in 1:length(ls.i)){
         ed.dat[[j]] <- list()
-        ed.dat[[j]][[1]] <- ncvar_get(nc,ls.i[j])
+        ed.dat[[j]][[1]] <- ncdf4::ncvar_get(nc,ls.i[j])
       }
       names(ed.dat) <- ls.i
     } else {
@@ -725,16 +725,16 @@ read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date, pft.n
       for(j in 1:length(ls.i)){
         k <- which(names(ed.dat) == ls.i[j])
         if(length(k)>0){
-          ed.dat[[k]][[t]] <- ncvar_get(nc,ls.i[j])
+          ed.dat[[k]][[t]] <- ncdf4::ncvar_get(nc,ls.i[j])
         } else { ## add a new ed.datiable. ***Not checked (shouldn't come up?)
           ed.dat[[length(ed.dat)+1]] <- list()    # Add space for new ed.datiable
           ed.dat[[length(ed.dat)]][1:(t-1)] <- NA # Give NA for all previous time points
-          ed.dat[[length(ed.dat)]][t] <- ncvar_get(nc,ls.i[j]) # Assign the value of the new ed.datiable at this time point
+          ed.dat[[length(ed.dat)]][t] <- ncdf4::ncvar_get(nc,ls.i[j]) # Assign the value of the new ed.datiable at this time point
           names(ed.dat)[length(ed.dat)] <- ls.i[j]
         }
       }      
     }
-    nc_close(nc)
+    ncdf4::nc_close(nc)
   } # enf ysel-loop
   
   # dbh.breaks <- 0 # Will represent a single DBH bin from 0 - Infinity cm
@@ -815,12 +815,12 @@ put_E_values <- function(yr, nc_var, out, begins, ends, pft.names, dbh.breaks, .
   
   # ----- fill list
   
-  t <- ncdim_def(name = "time", units = paste0("days since ", yr, "-01-01 00:00:00"), 
+  t <- ncdf4::ncdim_def(name = "time", units = paste0("days since ", yr, "-01-01 00:00:00"), 
                  vals = seq(begins, ends, length.out = dim(out[[1]])[3]), 
                  calendar = "standard", unlim = TRUE)
     
-  d <- ncdim_def(name = "dbh.breaks", units ="bins", vals = dbh.breaks)
-  p <- ncdim_def(name = "pft.numbers", units = "unitless", vals = pfts, longname = paste(pft.names, collapse=","))
+  d <- ncdf4::ncdim_def(name = "dbh.breaks", units ="bins", vals = dbh.breaks)
+  p <- ncdf4::ncdim_def(name = "pft.numbers", units = "unitless", vals = pfts, longname = paste(pft.names, collapse=","))
     
   nc_var[[s+1]]<- ncdf4::ncvar_def("DBH", units = "cm", dim = list(d,p,t), missval = -999, 
                                      longname = "Diameter at breast height")
