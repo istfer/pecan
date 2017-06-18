@@ -130,7 +130,7 @@ read.output <- function(runid, outdir, start.year = NA, end.year = NA, variables
           if("pft.numbers" %in% names(nc$dim)){
             # means there are PFT specific outputs we want
             pft.ind <- strsplit(nc$var$PFT$longname, ",")[[1]] == pft.name
-            newresult <- newresult[,pft.ind,]
+            newresult <- newresult[pft.ind,] #for now this is specific for dbh.breaks = 0
           }
           # Dropping attempt to provide more sensible units because of graph unit errors,
           # issue #792 if(v %in% c(cflux, wflux)){ newresult <- udunits2::ud.convert(newresult, 'kg

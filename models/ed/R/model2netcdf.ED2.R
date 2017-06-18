@@ -741,7 +741,7 @@ read_E_files <- function(yr, yfiles, efiles, outdir, start_date, end_date, pft.n
   ndbh <- length(dbh.breaks)
   npft <- length(pft.names)
   data(pftmapping, package = "PEcAn.ED2")
-  pfts  <- pftmapping$ED[which(pftmapping$PEcAn %in% pft.names)]
+  pfts <- sapply(pft.names, function(x) pftmapping$ED[pftmapping$PEcAn == x]) 
   
   out <- list()
   for(varname in varnames) {
@@ -811,7 +811,7 @@ put_E_values <- function(yr, nc_var, out, begins, ends, pft.names, dbh.breaks, .
   s <- length(nc_var)
   
   data(pftmapping, package = "PEcAn.ED2")
-  pfts  <- pftmapping$ED[which(pftmapping$PEcAn %in% pft.names)]
+  pfts <- sapply(pft.names, function(x) pftmapping$ED[pftmapping$PEcAn == x]) 
   
   # ----- fill list
   
