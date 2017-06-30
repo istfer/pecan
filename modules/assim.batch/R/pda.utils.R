@@ -23,7 +23,9 @@ assim.batch <- function(settings) {
     settings <- pda.mcmc.bs(settings)
   } else if (settings$assim.batch$method == "emulator") {
     settings <- pda.emulator(settings)
-  } else if (settings$assim.batch$method == "bayesian.tools") {
+  } else if (settings$assim.batch$method == "emulator.ms") {
+    settings <- pda.emulator.ms(settings)
+  }else if (settings$assim.batch$method == "bayesian.tools") {
     settings <- pda.bayesian.tools(settings)
   } else {
     logger.error(paste0("PDA method ", settings$assim.batch$method, " not found!"))
@@ -35,9 +37,9 @@ assim.batch <- function(settings) {
 
 ##' @export
 runModule.assim.batch <- function(settings) {
-  if (is.MultiSettings(settings)) {
+  if (is.MultiSettings(settings) && settings$assim.batch$method != "emulator.ms") { 
     return(papply(settings, runModule.assim.batch))
-  } else if (is.Settings(settings)) {
+  } else if (is.Settings(settings) || settings$assim.batch$method == "emulator.ms") {
     return(assim.batch(settings))
   } else {
     stop("runModule.assim.batch only works with Settings or MultiSettings")
