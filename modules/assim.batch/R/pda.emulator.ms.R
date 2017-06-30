@@ -707,14 +707,6 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     ## Set up prior functions accordingly
     global.prior.fn.all <- pda.define.prior.fn(prior.stack[[s]])
     
-    # global.tau.prior <- prior.stack[[s]][prior.ind.all,]
-    # rownames(global.tau.prior) <- paste0("tau.", rownames(global.tau.prior))
-    # global.tau.prior$distn <- "wish"
-    # global.tau.prior$parama <- 0
-    # global.tau.prior$paramb <- global.tau.prior$paramb/5
-    # global.tau.prior$n <- 2
-    # 
-    # priors.dataframe <-  prior.all[prior.ind.all,]
     
     resume.list <- list()
     
@@ -730,20 +722,13 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     }
     
     chain <- 1
-    s <- 1
-    gp          = gp.stack[[s]]
     x0          = init.list[[chain]]
-    nmcmc       = 60000
+    nmcmc       = 10000
     jmp0        = jmp.list[[chain]]
     ar.target   = settings$assim.batch$jump$ar.target
     priors      = global.prior.fn.all$dprior[prior.ind.all]
     settings    = settings
-    run.block   = TRUE  
-    n.of.obs    = nstack[[s]]
-    llik.fn     = llik.fn
-    resume.list = resume.list[[chain]]
-    
-    
+
     
     # initialize mu_global (nparam)
     mu_global_curr <- unlist(x0)
@@ -808,7 +793,6 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       ycurr  <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[,v], llik.fn, currllp[[v]]))
       
       
-      
       # predict new SS
       newSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], theta_site_new[v,]))
       newllp <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], newSS[,v]))
@@ -828,7 +812,6 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       #currSS[,ari] <- newSS[,ari]
       
       
-      
       theta_site_samp[g, , seq_len(nsites)] <- t(theta_site_curr)[,seq_len(nsites)]
       mu_global_samp[g,] <- mu_global_curr
       tau_global_samp[g,,] <- tau_global_curr
@@ -836,37 +819,6 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     }
     
     
-    
-    
-    
-    
-    ## Sample posterior from emulator
-    mcmc.out <- lapply(1:settings$assim.batch$chain, function(chain) {
-      mcmc.GP(gp          = gp, ## Emulator(s)
-              x0          = init.list[[chain]],     ## Initial conditions
-              nmcmc       = settings$assim.batch$iter,       ## Number of reps
-              rng         = rng,       ## range
-              format      = "lin",      ## "lin"ear vs "log" of LogLikelihood 
-              mix         = mix,     ## Jump "each" dimension independently or update them "joint"ly
-              jmp0        = jmp.list[[chain]],  ## Initial jump size
-              ar.target   = settings$assim.batch$jump$ar.target,   ## Target acceptance rate
-              priors      = prior.fn.all$dprior[prior.ind.all], ## priors
-              settings    = multi.settings[[s]],
-              run.block   = TRUE,  
-              n.of.obs    = unlist(nstack),
-              llik.fn     = llik.fn,
-              resume.list = resume.list[[chain]]
-      )
-    })
-    
-    #parallel::stopCluster(cl)
-    
-    # Stop the clock
-    ptm.finish <- proc.time() - ptm.start
-    logger.info(paste0("Emulator MCMC took ", paste0(round(ptm.finish[3])), " seconds for ", paste0(settings$assim.batch$iter), " iterations."))
-    
-    current.step <- paste0("post-MCMC - site: ", s)
-    save(list = ls(all.names = TRUE),envir=environment(),file=pda.restart.file)
     
     mcmc.samp.list <- list()
     
