@@ -385,7 +385,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
   ## -------------------------------------- Local MCMC ------------------------------------------ 
   if(local){ # local - if
     
-    for(s in seq_along(multi.settings)){ 
+    for(s in 2:5){ 
       
       settings <- multi.settings[[s]]
       
@@ -598,7 +598,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
               jmp0        = jmp.list[[chain]],  ## Initial jump size
               ar.target   = settings$assim.batch$jump$ar.target,   ## Target acceptance rate
               priors      = prior.fn.all$dprior[prior.ind.all], ## priors
-              settings    = multi.settings[[s]],
+              settings    = multi.settings[[s]], # this is just for checking llik functions downstream
               run.block   = TRUE,  
               n.of.obs    = unlist(nstack),
               llik.fn     = llik.fn,
@@ -738,34 +738,45 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
           # dnorm(x,125,150,log=TRUE)
 
 
-    
-    # initialize mu_global (nparam)
+    # initialize global parameters
+    # mu_global (nparam)
     mu_global <- unlist(x0)
     jcov <- diag((jmp0)^2)
-    
-    
-    # initialize tau_global (nparam x nparam)
+  
+    # tau_global (nparam x nparam)
     df <- sum(n.param) + 1
     tau_global <- rWishart(1, df, diag(1,sum(n.param)))[,,1]
 
+    # initialize site parameters
+    # theta_site (nsite x nparam)
+    theta_site_curr <- mvrnorm(nsites, mu_global, tau_global)))
+    colnames(theta_site_curr) <- names(mu_global)
     
-    # initialize theta_site (nsite x nparam)
-    theta_site <- t(sapply(seq_len(nsites), function(x) mvrnorm(1, mu_global, tau_global)))
-    colnames(theta_site) <- names(mu_global)
+    # tau_site (nsite x nparam x nparam)
+    tau_site <- rWishart(nsites, df, diag(1,sum(n.param)))
     
-    # SS  <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], theta_site[v,]))
-    # llp <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], SS[,v]))
+    currSS  <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], theta_site_curr[v,]))
+    currllp <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], currSS[,v]))
     
     # storage
     theta_site_samp <-  array(NA_real_, c(nmcmc, sum(n.param), nsites))
+    tau_site_samp <- array(NA_real_, c(nmcmc, nsites, sum(n.param), sum(n.param)))
     mu_global_samp  <-  matrix(NA_real_, nrow = nmcmc, ncol= sum(n.param))
     tau_global_samp <-  array(NA_real_, c(nmcmc, sum(n.param), sum(n.param)))
-    
+
     
     
     g <- 1
     for(g in seq_len(nmcmc)){
       
+      # adapt
+      if ((g > 2) && ((g - 1) %% settings$assim.batch$jump$adapt == 0)) {
+        params.recent <- mu_global_samp[(g - settings$assim.batch$jump$adapt):(g - 1),  ]
+        colnames(params.recent) <- names(x0)
+        # accept.count <- round(jmp@arate[(g-1)/settings$assim.batch$jump$adapt]*100)
+        sigma_global <- pda.adjust.jumps.bs(settings, sigma_global, mean(accept.count), params.recent)
+        accept.count <- rep(0, nsites)  # Reset counter
+      }
 
       ######
       #
@@ -777,22 +788,39 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       #
       
       # update tau_global ~ W()
-      tau_global <- rWishart(1, df, diag(sum(n.param)))[,,1]
+      stdev <- apply(theta_site, 2, sd)
+      tau_global <- rWishart(1, df, diag(stdev))[,,1]
       
       # update mu_global
       mu_global <- sapply(prior.ind.all, function(v) eval(global.prior.fn.all$rprior[[v]], list(n = 1)))
       
+      mu_global_var  <- solve(tau_global + solve(P_f))
+      mu_global_mean <- mu_global_var %*% (tau_global %*% theta_site + solve(P_f) %*% mu_f)
+      mu_global <- mvrnorm(mu_global_mean, mu_global_var)
+      
       # calculate likelihood now?
-      # SS   <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_global))
+      likelihood <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_global))
 
-      
+      # site level M-H
+
       # propose new theta_site | theta_global, tau_global
-      theta_site <- t(sapply(seq_len(nsites), function(x) mvrnorm(1, mu_global, tau_global)))
+      theta_site_new <- mvrnorm(nsites, mu_global, tau_global)
       
-      # calculate likelihood now?
-      # SS   <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], theta_site[v,]))
+      # re-predict current SS
+      currSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], theta_site_curr[v,]))
+      ycurr  <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[,v], llik.fn, currllp[[v]]))
       
-      theta_site_samp[g, , seq_len(nsites)] <- t(theta_site)[,seq_len(nsites)]
+      # predict new SS
+      newSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], theta_site_new[v,]))
+      newllp <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], newSS[,v]))
+      ynew <- sapply(seq_len(nsites), function(v) pda.calc.llik(newSS[,v], llik.fn, newllp[[v]]))
+      
+      ar <- is.accepted(ycurr, ynew)
+      theta_site_curr[ar, ] <- theta_site_new[ar, ]
+      accept.count <- accept.count + ar
+      
+      
+      theta_site_samp[g, , seq_len(nsites)] <- t(theta_site_curr)[,seq_len(nsites)]
       mu_global_samp[g,] <- mu_global
       tau_global_samp[g,,] <- tau_global
       
