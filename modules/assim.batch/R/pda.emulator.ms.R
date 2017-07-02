@@ -196,8 +196,8 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     # efficient sample size calculation
     #inputs <- pda.neff.calc(inputs)
     #for developing
-    inputs[[1]]$n_eff <- 10000
-    inputs[[2]]$n_eff <- 6000
+    inputs[[1]]$n_eff <- 2000
+    inputs[[2]]$n_eff <- 500
     
     # handle bias parameters if multiplicative Gaussian is listed in the likelihoods
     if(any(unlist(any.mgauss) == "multipGauss")) {
@@ -226,8 +226,6 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     current.step <- paste0("pda.calc.error - site: ", s)
     save(list = ls(all.names = TRUE),envir=environment(),file=pda.restart.file)
     
-    init.list <- list()
-    jmp.list <- list()
     
     prior.all <- do.call("rbind", prior.list)
     length.pars <- 0
@@ -381,11 +379,13 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     mix <- "each"
   }
   
+  init.list <- list()
+  jmp.list <- list()
   
   ## -------------------------------------- Local MCMC ------------------------------------------ 
   if(local){ # local - if
     
-    for(s in 2:5){ 
+    for(s in seq_along(multi.settings)){ 
       
       settings <- multi.settings[[s]]
       
@@ -415,17 +415,17 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       
       # # start the clock
       ptm.start <- proc.time()
-      # 
-      # # prepare for parallelization
-      # dcores <- parallel::detectCores() - 1
-      # ncores <- min(max(dcores, 1), settings$assim.batch$chain)
-      # 
-      # logger.setOutputFile(file.path(settings$outdir, "pda.log"))
-      # 
-      # cl <- parallel::makeCluster(ncores, type="FORK", outfile = file.path(settings$outdir, "pda.log"))
       
+      # prepare for parallelization
+      dcores <- parallel::detectCores() - 1
+      ncores <- min(max(dcores, 1), settings$assim.batch$chain)
+      
+      logger.setOutputFile(file.path(settings$outdir, "pda.log"))
+      
+      cl <- parallel::makeCluster(ncores, type="FORK", outfile = file.path(settings$outdir, "pda.log"))
+
       ## Sample posterior from emulator
-      mcmc.out <- lapply(1:settings$assim.batch$chain, function(chain) {
+      mcmc.out <- parallel::parLapply(cl, 1:settings$assim.batch$chain, function(chain) {
         mcmc.GP(gp          = gp.stack[[s]], ## Emulator(s)
                 x0          = init.list[[chain]],     ## Initial conditions
                 nmcmc       = settings$assim.batch$iter,       ## Number of reps
@@ -443,7 +443,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
         )
       })
       
-      #parallel::stopCluster(cl)
+      parallel::stopCluster(cl)
       
       # Stop the clock
       ptm.finish <- proc.time() - ptm.start
@@ -576,19 +576,19 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     save(list = ls(all.names = TRUE), envir=environment(),file=pda.restart.file)
     
     gp <- unlist(gp.stack, recursive = FALSE)
-    # # start the clock
+    # start the clock
     ptm.start <- proc.time()
+     
+    # prepare for parallelization
+    dcores <- parallel::detectCores() - 1
+    ncores <- min(max(dcores, 1), settings$assim.batch$chain)
     # 
-    # # prepare for parallelization
-    # dcores <- parallel::detectCores() - 1
-    # ncores <- min(max(dcores, 1), settings$assim.batch$chain)
+    logger.setOutputFile(file.path(settings$outdir, "pda.log"))
     # 
-    # logger.setOutputFile(file.path(settings$outdir, "pda.log"))
-    # 
-    # cl <- parallel::makeCluster(ncores, type="FORK", outfile = file.path(settings$outdir, "pda.log"))
+    cl <- parallel::makeCluster(ncores, type="FORK", outfile = file.path(settings$outdir, "pda.log"))
     
     ## Sample posterior from emulator
-    mcmc.out <- lapply(1:settings$assim.batch$chain, function(chain) {
+    mcmc.out <- parallel::parLapply(cl, 1:settings$assim.batch$chain, function(chain) {
       mcmc.GP(gp          = gp, ## Emulator(s)
               x0          = init.list[[chain]],     ## Initial conditions
               nmcmc       = settings$assim.batch$iter,       ## Number of reps
@@ -606,7 +606,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       )
     })
     
-    #parallel::stopCluster(cl)
+    parallel::stopCluster(cl)
     
     # Stop the clock
     ptm.finish <- proc.time() - ptm.start
@@ -748,18 +748,18 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     tau_global <- rWishart(1, df, diag(1,sum(n.param)))[,,1]
 
     # initialize site parameters
-    # theta_site (nsite x nparam)
-    theta_site_curr <- mvrnorm(nsites, mu_global, tau_global)))
-    colnames(theta_site_curr) <- names(mu_global)
+    # mu_site (nsite x nparam)
+    mu_site_curr <- mvrnorm(nsites, mu_global, tau_global)
+    colnames(mu_site_curr) <- names(mu_global)
     
     # tau_site (nsite x nparam x nparam)
     tau_site <- rWishart(nsites, df, diag(1,sum(n.param)))
     
-    currSS  <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], theta_site_curr[v,]))
+    currSS  <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
     currllp <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], currSS[,v]))
     
     # storage
-    theta_site_samp <-  array(NA_real_, c(nmcmc, sum(n.param), nsites))
+    mu_site_samp <-  array(NA_real_, c(nmcmc, sum(n.param), nsites))
     tau_site_samp <- array(NA_real_, c(nmcmc, nsites, sum(n.param), sum(n.param)))
     mu_global_samp  <-  matrix(NA_real_, nrow = nmcmc, ncol= sum(n.param))
     tau_global_samp <-  array(NA_real_, c(nmcmc, sum(n.param), sum(n.param)))
@@ -780,47 +780,74 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
 
       ######
       #
-      #  p(theta_site | mu_global, tau_global)
+      #  p(mu_site | mu_global, tau_global)
       #
       #  p(mu_global)
       #
       #  p(tau_global)
       #
       
-      # update tau_global ~ W()
-      stdev <- apply(theta_site, 2, sd)
-      tau_global <- rWishart(1, df, diag(stdev))[,,1]
+      ########################################
+      # update tau_global | mu_global, mu_site
+      #
+      # tau_global ~ W(df, Sigma)
+      # tau_global : error covariance matrix
+      # tau_df     : Wishart degrees of freedom
+      # tau_Sigma  : Wishart scale matrix
       
-      # update mu_global
-      mu_global <- sapply(prior.ind.all, function(v) eval(global.prior.fn.all$rprior[[v]], list(n = 1)))
+      df_tau <- nsites + sum(n.param) 
       
-      mu_global_var  <- solve(tau_global + solve(P_f))
-      mu_global_mean <- mu_global_var %*% (tau_global %*% theta_site + solve(P_f) %*% mu_f)
-      mu_global <- mvrnorm(mu_global_mean, mu_global_var)
+      sum_term_arr <- array(NA_real_, c(sum(n.param), sum(n.param), nsites))
+      for(i in seq_len(nsites)){
+        # (mu_site[i] - mu_global) .t(mu_site[i] - mu_global)
+        sum_term_arr[,,i] <- mu_site_curr[i,] - mu_global %*% t(mu_site_curr[i,] - mu_global)
+      }
+      sum_term_tau <- rowSums(sum_term_arr, dims = 2)
       
-      # calculate likelihood now?
-      likelihood <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_global))
+      V_inv <- solve(diag(1,sum(n.param)))
+      Sigma_tau <- solve(V_inv + sum_term_tau)
+        
+      tau_global <- rWishart(1, df_tau, Sigma_tau)[,,1]
+      
+      ########################################
+      # update mu_global | mu_site, tau_global
+      #
+      # mu_global ~ MVN(global_mu, global_Sigma)
+      #
+      # mu_global     : global parameters
+      # global_mu     : precision weighted average between the data (mu_site) and prior mean (mu_f)
+      # global_Sigma  : sum of mu_site and mu_f precision
+      
+      P_f <- diag(1,sum(n.param)) # prior covariance
+      mu_f <- apply(mu_site_curr, 2, mean)
+      global_Sigma <- solve(tau_global + solve(P_f))
+      global_mu    <- global_Sigma  %*% (mu_site_curr %*% tau_global + (solve(P_f) %*% mu_f))
+       
+      mu_global <- mvrnorm(global_mu, global_Sigma)
 
       # site level M-H
+      ########################################
+      # update mu_site | mu_global, tau_global
+      #
+      mu_site_new <- mvrnorm(nsites, mu_global, tau_global)
+      
 
-      # propose new theta_site | theta_global, tau_global
-      theta_site_new <- mvrnorm(nsites, mu_global, tau_global)
       
       # re-predict current SS
-      currSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], theta_site_curr[v,]))
+      currSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
       ycurr  <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[,v], llik.fn, currllp[[v]]))
       
       # predict new SS
-      newSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], theta_site_new[v,]))
+      newSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_new[v,]))
       newllp <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], newSS[,v]))
       ynew <- sapply(seq_len(nsites), function(v) pda.calc.llik(newSS[,v], llik.fn, newllp[[v]]))
       
       ar <- is.accepted(ycurr, ynew)
-      theta_site_curr[ar, ] <- theta_site_new[ar, ]
+      mu_site_curr[ar, ] <- mu_site_new[ar, ]
       accept.count <- accept.count + ar
       
       
-      theta_site_samp[g, , seq_len(nsites)] <- t(theta_site_curr)[,seq_len(nsites)]
+      mu_site_samp[g, , seq_len(nsites)] <- t(mu_site_curr)[,seq_len(nsites)]
       mu_global_samp[g,] <- mu_global
       tau_global_samp[g,,] <- tau_global
       
