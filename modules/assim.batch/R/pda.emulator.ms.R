@@ -707,9 +707,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     ## Set up prior functions accordingly
     global.prior.fn.all <- pda.define.prior.fn(prior.stack[[s]])
     
-    
-    resume.list <- list()
-    
+
     for (c in seq_len(settings$assim.batch$chain)) {
       jmp.list[[c]] <- sapply(global.prior.fn.all$qprior, 
                               function(x) 0.1 * diff(eval(x, list(p = c(0.05, 0.95)))))[prior.ind.all]
@@ -718,7 +716,6 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       init.x <- lapply(prior.ind.all, function(v) eval(global.prior.fn.all$rprior[[v]], list(n = 1)))
       names(init.x) <- rownames(prior.stack[[s]])[prior.ind.all]
       init.list[[c]] <- init.x
-      resume.list[[c]] <- NA
     }
     
     # develop with one chain 
@@ -735,80 +732,72 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
           # dnorm(x,18,12,log=TRUE)
           # dnorm(x,18,11,log=TRUE)
           # dnorm(x,0.13,0.12,log=TRUE)
-          # dnorm(x,125,150,log=TRUE)
+          # dnorm(x,135,30,log=TRUE)
 
 
-    # initialize global parameters
-    # mu_global (nparam)
-    mu_global <- unlist(x0)
-    jcov <- diag((jmp0)^2)
-  
-    # tau_global (nparam x nparam)
-    df <- sum(n.param) + 1
-    tau_global <- rWishart(1, df, diag(1,sum(n.param)))[,,1]
-
-    # initialize site parameters
-    # mu_site (nsite x nparam)
-    mu_site_curr <- mvrnorm(nsites, mu_global, tau_global)
-    colnames(mu_site_curr) <- names(mu_global)
+    # prior mean
+    mu_f <- sapply(global.prior.fn.all$qprior, function(x) eval(x, list(p = c(0.5))))[prior.ind.all] 
+    S_f <- diag((jmp0)^2) # prior covariance matrix
+    P_f  <- solve(S_f) # prior precision matrix
     
-    # tau_site (nsite x nparam x nparam)
-    tau_site <- rWishart(nsites, df, diag(1,sum(n.param)))
+    # initialize mu_global
+    mu_global <- mvrnorm(1, mu_f, S_f)
+
+    # initialize tau_global
+    tau_df <- nsites + sum(n.param) + 1
+    tau_global   <- rWishart(1, tau_df, P_f)[,,1] # site precision
     
+    # initialize mu_site
+    sigma_global <- solve(tau_global) # site covariance
+    mu_site_curr <- mvrnorm(nsites, mu_global, sigma_global) # site mean
+    
+
     currSS  <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
     currllp <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], currSS[,v]))
     
     # storage
     mu_site_samp <-  array(NA_real_, c(nmcmc, sum(n.param), nsites))
-    tau_site_samp <- array(NA_real_, c(nmcmc, nsites, sum(n.param), sum(n.param)))
+    # tau_site_samp <- array(NA_real_, c(nmcmc, nsites, sum(n.param), sum(n.param)))
     mu_global_samp  <-  matrix(NA_real_, nrow = nmcmc, ncol= sum(n.param))
     tau_global_samp <-  array(NA_real_, c(nmcmc, sum(n.param), sum(n.param)))
 
-    
+    accept.count <- rep(0, nsites)
     
     g <- 1
     for(g in seq_len(nmcmc)){
       
-      # adapt
-      if ((g > 2) && ((g - 1) %% settings$assim.batch$jump$adapt == 0)) {
-        params.recent <- mu_global_samp[(g - settings$assim.batch$jump$adapt):(g - 1),  ]
-        colnames(params.recent) <- names(x0)
-        # accept.count <- round(jmp@arate[(g-1)/settings$assim.batch$jump$adapt]*100)
-        sigma_global <- pda.adjust.jumps.bs(settings, sigma_global, mean(accept.count), params.recent)
-        accept.count <- rep(0, nsites)  # Reset counter
-      }
+      # # adapt
+      # if ((g > 2) && ((g - 1) %% settings$assim.batch$jump$adapt == 0)) {
+      #   params.recent <- mu_site_samp[(g - settings$assim.batch$jump$adapt):(g - 1), , ]
+      #   colnames(params.recent) <- names(x0)
+      #   # accept.count <- round(jmp@arate[(g-1)/settings$assim.batch$jump$adapt]*100)
+      #   jcov.list <- lapply(seq_len(nsites), function(v) pda.adjust.jumps.bs(settings, jcov.arr[,,v], accept.count[v], params.recent[,,v]))
+      #   jcov.arr  <- abind(jcov.list, along=3)
+      #   accept.count <- rep(0, nsites)  # Reset counter
+      # }
 
-      ######
-      #
-      #  p(mu_site | mu_global, tau_global)
-      #
-      #  p(mu_global)
-      #
-      #  p(tau_global)
-      #
+
       
       ########################################
       # update tau_global | mu_global, mu_site
       #
       # tau_global ~ W(df, Sigma)
-      # tau_global : error covariance matrix
-      # tau_df     : Wishart degrees of freedom
-      # tau_Sigma  : Wishart scale matrix
-      
-      df_tau <- nsites + sum(n.param) 
-      
-      sum_term_arr <- array(NA_real_, c(sum(n.param), sum(n.param), nsites))
+      # 
+      # tau_global   : error precision matrix
+       
+      sum_term <- matrix(0, ncol = sum(n.param), nrow = sum(n.param))
       for(i in seq_len(nsites)){
-        # (mu_site[i] - mu_global) .t(mu_site[i] - mu_global)
-        sum_term_arr[,,i] <- mu_site_curr[i,] - mu_global %*% t(mu_site_curr[i,] - mu_global)
+        pairwise_deviation <- as.matrix(mu_site_curr[i,] - mu_global)
+        sum_term <- sum_term + pairwise_deviation %*% t(pairwise_deviation)
       }
-      sum_term_tau <- rowSums(sum_term_arr, dims = 2)
       
-      V_inv <- solve(diag(1,sum(n.param)))
-      Sigma_tau <- solve(V_inv + sum_term_tau)
-        
-      tau_global <- rWishart(1, df_tau, Sigma_tau)[,,1]
+      V_inv <- solve(P_f) 
+      tau_sigma <- solve(V_inv + sum_term)
       
+      tau_global <- rWishart(1, df = tau_df, Sigma = tau_sigma)[,,1] # site precision
+      sigma_global <- solve(tau_global) # site covariance
+      
+
       ########################################
       # update mu_global | mu_site, tau_global
       #
@@ -818,21 +807,21 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       # global_mu     : precision weighted average between the data (mu_site) and prior mean (mu_f)
       # global_Sigma  : sum of mu_site and mu_f precision
       
-      P_f <- diag(1,sum(n.param)) # prior covariance
-      mu_f <- apply(mu_site_curr, 2, mean)
-      global_Sigma <- solve(tau_global + solve(P_f))
-      global_mu    <- global_Sigma  %*% (mu_site_curr %*% tau_global + (solve(P_f) %*% mu_f))
-       
-      mu_global <- mvrnorm(global_mu, global_Sigma)
+
+      
+      global_Sigma <- solve(tau_global + P_f)
+      
+      global_mu <- global_Sigma %*% ((tau_global %*% colMeans(mu_site_curr)) + P_f %*% mu_f)
+
+      mu_global <- mvrnorm(1, global_mu, global_Sigma)
+      
 
       # site level M-H
       ########################################
       # update mu_site | mu_global, tau_global
       #
-      mu_site_new <- mvrnorm(nsites, mu_global, tau_global)
-      
+      mu_site_new <- mvrnorm(nsites, mu_global, sigma_global)
 
-      
       # re-predict current SS
       currSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
       ycurr  <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[,v], llik.fn, currllp[[v]]))
