@@ -769,17 +769,17 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     for(j in seq_len(nsites)) jcov.arr[,,j] <- P_f
     
     # initialize mu_global
-    mu_global <- mvrnorm(1, mu_f, P_f)
+    mu_global_curr <- mvrnorm(1, mu_f, P_f)
 
     # initialize tau_global, how to initialize?
     tau_df <- nsites + sum(n.param) + 1
     tau_V  <- diag(1, sum(n.param))
     V_inv  <- solve(tau_V)
-    tau_global   <- rWishart(1, tau_df, tau_V)[,,1]
+    tau_global_curr   <- rWishart(1, tau_df, tau_V)[,,1]
     
     # initialize mu_site
-    sigma_global <- solve(tau_global) 
-    mu_site_curr <- mvrnorm(nsites, mu_global, sigma_global) # site mean
+    sigma_global_curr <- solve(tau_global_curr) 
+    mu_site_curr <- mvrnorm(nsites, mu_global, sigma_global_curr) # site mean
     
     # storage
     mu_site_samp <-  array(NA_real_, c(nmcmc, sum(n.param), nsites))
@@ -814,7 +814,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       # sum of pairwise deviation products
       sum_term <- matrix(0, ncol = sum(n.param), nrow = sum(n.param))
       for(i in seq_len(nsites)){
-        pairwise_deviation <- as.matrix(mu_site_curr[i,] - mu_global)
+        pairwise_deviation <- as.matrix(mu_site_curr[i,] - mu_global_curr)
         sum_term <- sum_term + pairwise_deviation %*% t(pairwise_deviation)
       }
       
@@ -822,8 +822,8 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       tau_sigma <- solve(V_inv + sum_term)
       
       # update tau
-      tau_global <- rWishart(1, df = tau_df, Sigma = tau_sigma)[,,1] # site precision
-      sigma_global <- solve(tau_global) # site covariance
+      tau_global_new <- rWishart(1, df = tau_df, Sigma = tau_sigma)[,,1] # site precision
+      sigma_global_new <- solve(tau_global_new) # site covariance
       
 
       ########################################
@@ -836,12 +836,12 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       # global_Sigma  : sum of mu_site and mu_f precision
       
       
-      global_Sigma <- solve(P_f_inv + nsites * tau_global)
+      global_Sigma <- solve(P_f_inv + nsites * tau_global_new)
       
       # global_mu dimensions need to be 1x6? because mu_global is 1x6?
-      global_mu <- global_Sigma %*% ((nsites * tau_global %*% colMeans(mu_site_curr)) + P_f_inv %*% mu_f)
+      global_mu <- global_Sigma %*% ((nsites * tau_global_new %*% colMeans(mu_site_curr)) + P_f_inv %*% mu_f)
 
-      mu_global <- mvrnorm(1, global_mu, global_Sigma)
+      mu_global_new <- mvrnorm(1, global_mu, global_Sigma)
       
 
       # site level M-H
@@ -850,23 +850,36 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       #
       mu_site_new <- t(sapply(seq_len(nsites), function(n) mvrnorm(1, mu_site_curr[n,], jcov.arr[,,n])))
 
-      # re-predict current SS
-      currSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
-      ycurr  <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[,v], llik.fn, currllp[[v]]))
+      # predict current SS
+      currSS    <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
+      
+      # calculate posterior
+      currLL    <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[,v], llik.fn, currllp[[v]]))
+      currPrior <- dmvnorm(mu_site_curr, mu_global_curr, tau_global_curr, log = TRUE)
+      currPost  <- currLL + currPrior
+      
       
       # predict new SS
       newSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_new[v,]))
-      newllp <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], newSS[,v]))
-      ynew <- sapply(seq_len(nsites), function(v) pda.calc.llik(newSS[,v], llik.fn, newllp[[v]]))
       
-      ar <- is.accepted(ycurr, ynew)
+      # calculate posterior
+      newllp   <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], newSS[,v]))
+      newLL    <- sapply(seq_len(nsites), function(v) pda.calc.llik(newSS[,v], llik.fn, newllp[[v]]))
+      newPrior <- dmvnorm(mu_site_new, mu_global_new, tau_global_new, log = TRUE)
+      newPost  <- newLL + newPrior
+      
+      
+      ar <- is.accepted(currPost, newPost)
       mu_site_curr[ar, ] <- mu_site_new[ar, ]
       accept.count <- accept.count + ar
       
+      # 100% acceptance for gibbs
+      mu_global_curr  <- mu_global_new
+      tau_global_curr <- tau_global_new
       
       mu_site_samp[g, , seq_len(nsites)] <- t(mu_site_curr)[,seq_len(nsites)]
-      mu_global_samp[g,] <- mu_global
-      tau_global_samp[g,,] <- tau_global
+      mu_global_samp[g,]   <- mu_global_curr
+      tau_global_samp[g,,] <- tau_global_curr
       
     }
     
