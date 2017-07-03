@@ -753,7 +753,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     #      mu_global ~ MVN (mu_f, P_f)
     #
     #      tau_df    : Wishart degrees of freedom
-    #      tau_scale : Wishart scale matrix
+    #      tau_V     : Wishart scale matrix
     #      tau_global ~ W (tau_df, tau_scale)
     #      sigma_global <- solve(tau_global)
     #
@@ -769,7 +769,8 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
 
     # initialize tau_global, how to initialize?
     tau_df <- nsites + sum(n.param) + 1
-    tau_global   <- rWishart(1, tau_df, P_f)[,,1]
+    tau_V  <- diag(1, sum(n.param))
+    tau_global   <- rWishart(1, tau_df, tau_V)[,,1]
     
     # initialize mu_site
     sigma_global <- solve(tau_global) 
