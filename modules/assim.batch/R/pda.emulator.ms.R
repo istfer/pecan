@@ -721,7 +721,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     # develop with one chain 
     chain <- 1
     x0          = init.list[[chain]]
-    nmcmc       = 10000
+    nmcmc       = 1000
     jmp0        = jmp.list[[chain]]
     priors      = global.prior.fn.all$dprior[prior.ind.all]
     
@@ -734,21 +734,45 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
           # dnorm(x,0.13,0.12,log=TRUE)
           # dnorm(x,135,30,log=TRUE)
 
+    ################################################################
+    #
+    #      mu_site    : site level parameters (nsite x nparam)
+    #      tau_site   : site level precision (nsite x nparam x nparam)
+    #      mu_global  : global parameters (nparam)
+    #      tau_global : global precision matrix (nparam x nparam)
+    #
+    #
+    #
+    #      ### process model  
+    #      mu_site ~ MVN (mu_global, tau_global)
+    #      (in R semantics =)  mu_site <- mvrnorm(1, mu_global, sigma_global)
+    #
+    #      ### priors
+    #      mu_f : prior mean vector
+    #      P_f  : prior covariance matrix
+    #      mu_global ~ MVN (mu_f, P_f)
+    #
+    #      tau_df    : Wishart degrees of freedom
+    #      tau_scale : Wishart scale matrix
+    #      tau_global ~ W (tau_df, tau_scale)
+    #      sigma_global <- solve(tau_global)
+    #
+    ###############################################################
 
-    # prior mean
-    mu_f <- sapply(global.prior.fn.all$qprior, function(x) eval(x, list(p = c(0.5))))[prior.ind.all] 
-    S_f <- diag((jmp0)^2) # prior covariance matrix
-    P_f  <- solve(S_f) # prior precision matrix
+    # prior mean vector
+    mu_f     <- sapply(global.prior.fn.all$qprior, function(x) eval(x, list(p = c(0.5))))[prior.ind.all] 
+    P_f      <- diag((jmp0)^2) # prior covariance matrix
+    P_f_inv  <- solve(P_f) # prior precision matrix
     
     # initialize mu_global
-    mu_global <- mvrnorm(1, mu_f, S_f)
+    mu_global <- mvrnorm(1, mu_f, P_f)
 
-    # initialize tau_global
+    # initialize tau_global, how to initialize?
     tau_df <- nsites + sum(n.param) + 1
-    tau_global   <- rWishart(1, tau_df, P_f)[,,1] # site precision
+    tau_global   <- rWishart(1, tau_df, P_f)[,,1]
     
     # initialize mu_site
-    sigma_global <- solve(tau_global) # site covariance
+    sigma_global <- solve(tau_global) 
     mu_site_curr <- mvrnorm(nsites, mu_global, sigma_global) # site mean
     
 
@@ -785,15 +809,18 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       # 
       # tau_global   : error precision matrix
        
+      # sum of pairwise deviation products
       sum_term <- matrix(0, ncol = sum(n.param), nrow = sum(n.param))
       for(i in seq_len(nsites)){
         pairwise_deviation <- as.matrix(mu_site_curr[i,] - mu_global)
         sum_term <- sum_term + pairwise_deviation %*% t(pairwise_deviation)
       }
       
+      # what is V? which prior?
       V_inv <- solve(P_f) 
       tau_sigma <- solve(V_inv + sum_term)
       
+      # update tau
       tau_global <- rWishart(1, df = tau_df, Sigma = tau_sigma)[,,1] # site precision
       sigma_global <- solve(tau_global) # site covariance
       
@@ -811,6 +838,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       
       global_Sigma <- solve(tau_global + P_f)
       
+      # global_mu dimensions need to be 1x6? because mu_global is 1x6?
       global_mu <- global_Sigma %*% ((tau_global %*% colMeans(mu_site_curr)) + P_f %*% mu_f)
 
       mu_global <- mvrnorm(1, global_mu, global_Sigma)
@@ -818,7 +846,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
 
       # site level M-H
       ########################################
-      # update mu_site | mu_global, tau_global
+      # propose mu_site | mu_global, tau_global
       #
       mu_site_new <- mvrnorm(nsites, mu_global, sigma_global)
 
