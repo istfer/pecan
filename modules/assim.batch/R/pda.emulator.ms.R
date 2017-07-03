@@ -764,6 +764,10 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     P_f      <- diag((jmp0)^2) # prior covariance matrix
     P_f_inv  <- solve(P_f) # prior precision matrix
     
+    # initialize jcov.arr
+    jcov.arr <-  array(NA_real_, c(sum(n.param), sum(n.param), nsites))
+    for(j in seq_len(nsites)) jcov.arr[,,j] <- P_f
+    
     # initialize mu_global
     mu_global <- mvrnorm(1, mu_f, P_f)
 
@@ -788,15 +792,15 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     g <- 1
     for(g in seq_len(nmcmc)){
       
-      # # adapt
-      # if ((g > 2) && ((g - 1) %% settings$assim.batch$jump$adapt == 0)) {
-      #   params.recent <- mu_site_samp[(g - settings$assim.batch$jump$adapt):(g - 1), , ]
-      #   colnames(params.recent) <- names(x0)
-      #   # accept.count <- round(jmp@arate[(g-1)/settings$assim.batch$jump$adapt]*100)
-      #   jcov.list <- lapply(seq_len(nsites), function(v) pda.adjust.jumps.bs(settings, jcov.arr[,,v], accept.count[v], params.recent[,,v]))
-      #   jcov.arr  <- abind(jcov.list, along=3)
-      #   accept.count <- rep(0, nsites)  # Reset counter
-      # }
+      # adapt
+      if ((g > 2) && ((g - 1) %% settings$assim.batch$jump$adapt == 0)) {
+        params.recent <- mu_site_samp[(g - settings$assim.batch$jump$adapt):(g - 1), , ]
+        colnames(params.recent) <- names(x0)
+        # accept.count <- round(jmp@arate[(g-1)/settings$assim.batch$jump$adapt]*100)
+        jcov.list <- lapply(seq_len(nsites), function(v) pda.adjust.jumps.bs(settings, jcov.arr[,,v], accept.count[v], params.recent[,,v]))
+        jcov.arr  <- abind(jcov.list, along=3)
+        accept.count <- rep(0, nsites)  # Reset counter
+      }
 
 
       
@@ -844,7 +848,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       ########################################
       # propose mu_site | mu_global, tau_global
       #
-      mu_site_new <- mvrnorm(nsites, mu_global, sigma_global)
+      mu_site_new <- t(sapply(seq_len(nsites), function(n) mvrnorm(1, mu_site_curr[n,], jcov.arr[,,n])))
 
       # re-predict current SS
       currSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
