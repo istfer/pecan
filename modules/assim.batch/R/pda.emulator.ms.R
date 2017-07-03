@@ -770,6 +770,7 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     # initialize tau_global, how to initialize?
     tau_df <- nsites + sum(n.param) + 1
     tau_V  <- diag(1, sum(n.param))
+    V_inv  <- solve(tau_V)
     tau_global   <- rWishart(1, tau_df, tau_V)[,,1]
     
     # initialize mu_site
@@ -814,7 +815,6 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       }
       
       # what is V? which prior?
-      V_inv <- solve(P_f) 
       tau_sigma <- solve(V_inv + sum_term)
       
       # update tau
@@ -831,12 +831,11 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
       # global_mu     : precision weighted average between the data (mu_site) and prior mean (mu_f)
       # global_Sigma  : sum of mu_site and mu_f precision
       
-
       
-      global_Sigma <- solve(tau_global + P_f)
+      global_Sigma <- solve(P_f_inv + nsites * tau_global)
       
       # global_mu dimensions need to be 1x6? because mu_global is 1x6?
-      global_mu <- global_Sigma %*% ((tau_global %*% colMeans(mu_site_curr)) + P_f %*% mu_f)
+      global_mu <- global_Sigma %*% ((nsites * tau_global %*% colMeans(mu_site_curr)) + P_f_inv %*% mu_f)
 
       mu_global <- mvrnorm(1, global_mu, global_Sigma)
       
