@@ -776,13 +776,9 @@ pda.emulator.ms <- function(settings, params.id = NULL, param.names = NULL, prio
     sigma_global <- solve(tau_global) 
     mu_site_curr <- mvrnorm(nsites, mu_global, sigma_global) # site mean
     
-
-    currSS  <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
-    currllp <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], currSS[,v]))
-    
     # storage
     mu_site_samp <-  array(NA_real_, c(nmcmc, sum(n.param), nsites))
-    # tau_site_samp <- array(NA_real_, c(nmcmc, nsites, sum(n.param), sum(n.param)))
+    # tau_site_samp <- array(NA_real_, c(nmcmc, nsites, nsites))
     mu_global_samp  <-  matrix(NA_real_, nrow = nmcmc, ncol= sum(n.param))
     tau_global_samp <-  array(NA_real_, c(nmcmc, sum(n.param), sum(n.param)))
 
