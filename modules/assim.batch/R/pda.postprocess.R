@@ -28,7 +28,7 @@ pda.postprocess <- function(settings, con, mcmc.param.list, pname, prior, prior.
     par.file.name <- NULL
   }
 
-  params.subset <- pda.plot.params(settings, mcmc.param.list, prior.ind, par.file.name, sffx = NULL)
+  params.subset <- pda.plot.params(settings, mcmc.param.list, prior.ind, par.file.name, sffx)
   
   for (i in seq_along(settings$pfts)) {
     
