@@ -904,7 +904,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     
     ## Sample posterior from emulator
     mcmc.out <- parallel::parLapply(cl, seq_len(settings$assim.batch$chain), function(chain) {
-      hier.mcmc(settings, gp.stack = gp.stack, nstack = nstack, nmcmc = 10000, rng = rng,
+      hier.mcmc(settings, gp.stack = gp.stack, nstack = nstack, nmcmc = settings$assim.batch$iter, rng = rng,
               global.prior.fn.all = global.prior.fn.all, jmp0 = jmp.list[[chain]], 
               prior.ind.all = prior.ind.all, n.param = n.param, nsites = nsites)
     })
