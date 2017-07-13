@@ -847,21 +847,9 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         ########################################
         
         # propose mu_site 
-        
-        # for(s in seq_len(nsites)){
-        #   repeat {
-        #     cand <- mvtnorm::rmvnorm(100, mu_site_curr[s,], jcov.arr[,,s])
-        #     check.mat <- sapply(seq_len(sum(n.param)), function(x) {
-        #       chk <- (cand[,x] > rng[x, 1] & cand[,x] < rng[x, 2]) 
-        #       return(chk)})
-        #     any.check <- apply(check.mat, 1, all)
-        #     if(any(any.check)) break
-        #   }
-        #   mu_site_curr[s,] <- cand[sample(which(any.check), 1), ] 
-        # }
-        
+      
         for(ns in seq_len(nsites)){
-          repeat{
+          repeat{ # make sure to stay in emulator boundaries, otherwise it confuses adaptation
             mu_site_new[ns,] <- mvtnorm::rmvnorm(1, mu_site_curr[ns,], jcov.arr[,,s])
             check.that <- sapply(seq_len(sum(n.param)), function(x) {
               chk <- (mu_site_new[ns,x] > rng[x, 1] & mu_site_new[ns,x] < rng[x, 2]) 
