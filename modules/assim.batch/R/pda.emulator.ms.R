@@ -1,4 +1,5 @@
 ##' Paramater Data Assimilation using emulator on multiple sites in three modes: local, global, hierarchical
+##' First draft, not complete yet
 ##'
 ##' @title Paramater Data Assimilation using emulator on multiple sites
 ##' @param settings = a pecan settings list
@@ -530,17 +531,11 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       
       multi.settings[[s]] <- settings
       
-      ## save updated settings XML
-      saveXML(listToXml(settings, "pecan"), file = file.path(settings$outdir, paste0("pecan.pda", settings$assim.batch$ensemble.id, 
-                                                                                     "_site.", settings$run$site$id, ".xml")))
+      # ## save updated settings XML
+      # saveXML(listToXml(settings, "pecan"), file = file.path(settings$outdir, paste0("pecan.pda", settings$assim.batch$ensemble.id, 
+      #                                                                                "_site.", settings$run$site$id, ".xml")))
       
     } # end - local
-    
-    ## close database connection
-    if (!is.null(con)) {
-      db.close(con)
-    }
-    
     
     
   }
@@ -690,10 +685,10 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     settings <- pda.postprocess(settings, con, mcmc.param.list, pname, prior.list, prior.ind.orig, sffx = "_global")
     
     
-    # HOW TO SAVE MULTI SETTINGS
-    ## save updated settings XML
-    saveXML(listToXml(settings, "pecan"), file = file.path(settings$outdir, paste0("pecan.pda", settings$assim.batch$ensemble.id, 
-                                                                                   "_site.", settings$run$site$id, ".xml")))
+    # # HOW TO SAVE MULTI SETTINGS
+    # ## save updated settings XML
+    # saveXML(listToXml(settings, "pecan"), file = file.path(settings$outdir, paste0("pecan.pda", settings$assim.batch$ensemble.id, 
+    #                                                                                "_site.", settings$run$site$id, ".xml")))
     
     
   } # end - global
@@ -711,7 +706,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
 
     for (c in seq_len(settings$assim.batch$chain)) {
       jmp.list[[c]] <- sapply(global.prior.fn.all$qprior, 
-                              function(x) 0.1 * diff(eval(x, list(p = c(0.05, 0.95)))))[prior.ind.all]
+                              function(x) 0.001 * diff(eval(x, list(p = c(0.05, 0.95)))))[prior.ind.all]
       jmp.list[[c]] <- sqrt(jmp.list[[c]])
       
       init.x <- lapply(prior.ind.all, function(v) eval(global.prior.fn.all$rprior[[v]], list(n = 1)))
@@ -731,7 +726,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     #
     #      ### process model  
     #      mu_site ~ MVN (mu_global, tau_global)
-    #      (in R semantics =)  mu_site <- mvrnorm(1, mu_global, sigma_global)
+    #      (in R semantics =)  mu_site <- rmvnorm(1, mu_global, sigma_global)
     #
     #      ### priors
     #      mu_f : prior mean vector
@@ -759,7 +754,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       for(j in seq_len(nsites)) jcov.arr[,,j] <- P_f
       
       # initialize mu_global
-      mu_global <- mvrnorm(1, mu_f, P_f)
+      mu_global <- mvtnorm::rmvnorm(1, mu_f, P_f)
       
       # initialize tau_global
       tau_df <- nsites + sum(n.param) + 1
@@ -769,11 +764,21 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       
       # initialize mu_site
       sigma_global <- solve(tau_global) 
-      mu_site_curr <- mvrnorm(nsites, mu_global, sigma_global) # site mean
+      mu_site_curr <- matrix(NA_real_, nrow = nsites, ncol= sum(n.param))
+      for( i in 1:nsites){
+        repeat{
+          mu_site_curr[i,] <- mvtnorm::rmvnorm(1, mu_global, sigma_global) # site mean
+          check.that <- sapply(seq_len(sum(n.param)), function(x) {
+            chk <- (mu_site_curr[i,x] > rng[x, 1] & mu_site_curr[i,x] < rng[x, 2]) 
+            return(chk)})
+          
+          if(all(check.that)) break
+        }
+      }
       mu_site_new  <- mu_site_curr
       
-      currSS    <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
-      currllp   <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], currSS[,v]))
+      currSS    <- sapply(seq_len(nsites), function(v) PEcAn.emulator::get_ss(gp.stack[[v]], mu_site_curr[v,]))
+      currllp   <- lapply(seq_len(nsites), function(v) PEcAn.assim.batch::pda.calc.llik.par(settings, nstack[[v]], currSS[,v]))
       
       # storage
       mu_site_samp <-  array(NA_real_, c(nmcmc, sum(n.param), nsites))
@@ -783,13 +788,12 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       
       accept.count <- rep(0, nsites)
       
-      g <- 1
       for(g in seq_len(nmcmc)){
         
         # adapt
         if ((g > 2) && ((g - 1) %% settings$assim.batch$jump$adapt == 0)) {
           params.recent <- mu_site_samp[(g - settings$assim.batch$jump$adapt):(g - 1), , ]
-          colnames(params.recent) <- names(x0)
+          #colnames(params.recent) <- names(x0)
           jcov.list <- lapply(seq_len(nsites), function(v) pda.adjust.jumps.bs(settings, jcov.arr[,,v], accept.count[v], params.recent[,,v]))
           jcov.arr  <- abind(jcov.list, along=3)
           accept.count <- rep(0, nsites)  # Reset counter
@@ -808,7 +812,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         sum_term <- matrix(0, ncol = sum(n.param), nrow = sum(n.param))
         for(i in seq_len(nsites)){
           pairwise_deviation <- as.matrix(mu_site_curr[i,] - mu_global)
-          sum_term <- sum_term + pairwise_deviation %*% t(pairwise_deviation)
+          sum_term <- sum_term + t(pairwise_deviation) %*% pairwise_deviation
         }
         
         tau_sigma <- solve(V_inv + sum_term)
@@ -832,7 +836,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         
         global_mu <- global_Sigma %*% ((nsites * tau_global %*% colMeans(mu_site_curr)) + (P_f_inv %*% mu_f))
         
-        mu_global <- mvrnorm(1, global_mu, global_Sigma)
+        mu_global <- mvtnorm::rmvnorm(1, global_mu, global_Sigma)
         
         
         # site level M-H
@@ -840,14 +844,28 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         
         # propose mu_site 
         
+        # for(s in seq_len(nsites)){
+        #   repeat {
+        #     cand <- mvtnorm::rmvnorm(100, mu_site_curr[s,], jcov.arr[,,s])
+        #     check.mat <- sapply(seq_len(sum(n.param)), function(x) {
+        #       chk <- (cand[,x] > rng[x, 1] & cand[,x] < rng[x, 2]) 
+        #       return(chk)})
+        #     any.check <- apply(check.mat, 1, all)
+        #     if(any(any.check)) break
+        #   }
+        #   mu_site_curr[s,] <- cand[sample(which(any.check), 1), ] 
+        # }
+        
         for(s in seq_len(nsites)){
-          repeat {
-            mu_site_new[s,] <- mvrnorm(1, mu_site_curr[s,], jcov.arr[,,s])
-            if(all(sapply(seq_len(sum(n.param)), function(x) bounded(mu_site_new[s,x], rng[x,, drop = FALSE])))){
-              break
-            }
+          repeat{
+            mu_site_new[s,] <- mvtnorm::rmvnorm(1, mu_site_curr[s,], jcov.arr[,,s])
+            check.that <- sapply(seq_len(sum(n.param)), function(x) {
+              chk <- (mu_site_new[s,x] > rng[x, 1] & mu_site_new[s,x] < rng[x, 2]) 
+              return(chk)})
+            
+            if(all(check.that)) break
           }
-        }
+       }
         
         
         # re-predict current SS
@@ -855,7 +873,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         
         # calculate posterior
         currLL    <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[,v], llik.fn, currllp[[v]]))
-        currPrior <- dmvnorm(mu_site_curr, mu_global, sigma_global, log = TRUE)
+        currPrior <- mvtnorm::dmvnorm(mu_site_curr, mu_global, sigma_global, log = TRUE)
         currPost  <- currLL + currPrior
         
         
@@ -868,7 +886,6 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         newPrior <- dmvnorm(mu_site_new, mu_global, sigma_global, log = TRUE)
         newPost  <- newLL + newPrior
         
-        
         ar <- is.accepted(currPost, newPost)
         mu_site_curr[ar, ] <- mu_site_new[ar, ]
         accept.count <- accept.count + ar
@@ -880,8 +897,8 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         
       }
       
-      return(mu_global_samp)
-    }
+      return(list(mcmc.samp = mu_global_samp))
+    } # hier.mcmc
     
     # prepare for parallelization
     dcores <- parallel::detectCores() - 1
@@ -892,8 +909,8 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     cl <- parallel::makeCluster(ncores, type="FORK", outfile = file.path(settings$outdir, "pda.log"))
     
     ## Sample posterior from emulator
-    mcmc.out <- parallel::parLapply(cl, 1:settings$assim.batch$chain, function(chain) {
-      hier.mcmc(settings, gp.stack = gp.stack, nstack = nstack, nmcmc = settings$assim.batch$iter, rng = rng,
+    mcmc.out <- parallel::parLapply(cl, seq_len(settings$assim.batch$chain), function(chain) {
+      hier.mcmc(settings, gp.stack = gp.stack, nstack = nstack, nmcmc = 10000, rng = rng,
               global.prior.fn.all = global.prior.fn.all, jmp0 = jmp.list[[chain]], 
               prior.ind.all = prior.ind.all, n.param = n.param, nsites = nsites)
     })
@@ -941,7 +958,6 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         sf.samp.list[[c]] <- sfm
       }
       
-      resume.list[[c]] <- mcmc.out[[c]]$chain.res
     }
     
     # Separate each PFT's parameter samples (and bias term) to their own list
@@ -952,23 +968,23 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       ind <- ind + n.param.orig[i]
     }
     
-    # Collect non-model parameters in their own list
-    if(length(mcmc.param.list) > length(settings$pfts)) { 
-      # means bias parameter was at least one bias param in the emulator
-      # it will be the last list in mcmc.param.list
-      # there will always be at least one tau for bias
-      for(c in seq_len(settings$assim.batch$chain)){
-        mcmc.param.list[[length(mcmc.param.list)]][[c]] <- cbind( mcmc.param.list[[length(mcmc.param.list)]][[c]],
-                                                                  mcmc.out[[c]]$mcmc.par)
-      }
-      
-    } else if (ncol(mcmc.out[[1]]$mcmc.par) != 0){
-      # means no bias param but there are still other params, e.g. Gaussian
-      mcmc.param.list[[length(mcmc.param.list)+1]] <- list()
-      for(c in seq_len(settings$assim.batch$chain)){
-        mcmc.param.list[[length(mcmc.param.list)]][[c]] <- mcmc.out[[c]]$mcmc.par
-      }
-    }
+    # # Collect non-model parameters in their own list
+    # if(length(mcmc.param.list) > length(settings$pfts)) { 
+    #   # means bias parameter was at least one bias param in the emulator
+    #   # it will be the last list in mcmc.param.list
+    #   # there will always be at least one tau for bias
+    #   for(c in seq_len(settings$assim.batch$chain)){
+    #     mcmc.param.list[[length(mcmc.param.list)]][[c]] <- cbind( mcmc.param.list[[length(mcmc.param.list)]][[c]],
+    #                                                               mcmc.out[[c]]$mcmc.par)
+    #   }
+    #   
+    # } else if (ncol(mcmc.out[[1]]$mcmc.par) != 0){
+    #   # means no bias param but there are still other params, e.g. Gaussian
+    #   mcmc.param.list[[length(mcmc.param.list)+1]] <- list()
+    #   for(c in seq_len(settings$assim.batch$chain)){
+    #     mcmc.param.list[[length(mcmc.param.list)]][[c]] <- mcmc.out[[c]]$mcmc.par
+    #   }
+    # }
     
     # file flag will be needed to pass as these will al go into pft folder
     settings <- pda.postprocess(settings, con, mcmc.param.list, pname, prior.list, prior.ind.orig, sffx = "_hierarchical")
@@ -994,6 +1010,10 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     resume.list = resume.list[[1]]
   }
   
+  ## close database connection
+  if (!is.null(con)) {
+    db.close(con)
+  }
   
   return(settings)
   
