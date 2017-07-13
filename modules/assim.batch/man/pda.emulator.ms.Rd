@@ -4,9 +4,10 @@
 \alias{pda.emulator.ms}
 \title{Paramater Data Assimilation using emulator on multiple sites}
 \usage{
-pda.emulator.ms(settings, params.id = NULL, param.names = NULL,
-  prior.id = NULL, chain = NULL, iter = NULL, adapt = NULL,
-  adj.min = NULL, ar.target = NULL, jvar = NULL, n.knot = NULL)
+pda.emulator.ms(settings, external.priors = NULL, params.id = NULL,
+  param.names = NULL, prior.id = NULL, chain = NULL, iter = NULL,
+  adapt = NULL, adj.min = NULL, ar.target = NULL, jvar = NULL,
+  n.knot = NULL)
 }
 \arguments{
 \item{settings}{= a pecan settings list}
@@ -16,6 +17,7 @@ settings
 }
 \description{
 Paramater Data Assimilation using emulator on multiple sites in three modes: local, global, hierarchical
+First draft, not complete yet
 }
 \author{
 Istem Fer
