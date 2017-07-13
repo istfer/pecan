@@ -697,8 +697,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
   ## -------------------------------------- Hierarchical MCMC ------------------------------------------ 
   if(hierarchical){ # hierarchical - if
     
-    s<-1
-    settings <- multi.settings[[s]]
+    settings <- multi.settings[[1]] # any site will do, will be used just for likelihood fcn info
     
     ## Set up prior functions accordingly
     global.prior.fn.all <- pda.define.prior.fn(prior.stack[[s]])
@@ -706,76 +705,81 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
 
     for (c in seq_len(settings$assim.batch$chain)) {
       jmp.list[[c]] <- sapply(global.prior.fn.all$qprior, 
-                              function(x) 0.001 * diff(eval(x, list(p = c(0.05, 0.95)))))[prior.ind.all]
+                              function(x) 0.1 * diff(eval(x, list(p = c(0.05, 0.95)))))[prior.ind.all]
       jmp.list[[c]] <- sqrt(jmp.list[[c]])
       
-      init.x <- lapply(prior.ind.all, function(v) eval(global.prior.fn.all$rprior[[v]], list(n = 1)))
-      names(init.x) <- rownames(prior.stack[[s]])[prior.ind.all]
-      init.list[[c]] <- init.x
+      # init.x <- lapply(prior.ind.all, function(v) eval(global.prior.fn.all$rprior[[v]], list(n = 1)))
+      # names(init.x) <- rownames(prior.stack[[s]])[prior.ind.all]
+      # init.list[[c]] <- init.x
     }
     
 
     ################################################################
     #
     #      mu_site    : site level parameters (nsite x nparam)
-    #      tau_site   : site level precision (nsite x nparam x nparam)
+    #      tau_site   : site level precision (nsite x nsite)
     #      mu_global  : global parameters (nparam)
     #      tau_global : global precision matrix (nparam x nparam)
     #
-    #
-    #
-    #      ### process model  
-    #      mu_site ~ MVN (mu_global, tau_global)
-    #      (in R semantics =)  mu_site <- rmvnorm(1, mu_global, sigma_global)
-    #
-    #      ### priors
-    #      mu_f : prior mean vector
-    #      P_f  : prior covariance matrix
-    #      mu_global ~ MVN (mu_f, P_f)
-    #
-    #      tau_df    : Wishart degrees of freedom
-    #      tau_V     : Wishart scale matrix
-    #      tau_global ~ W (tau_df, tau_scale)
-    #      sigma_global <- solve(tau_global)
-    #
-    ###############################################################
+    ################################################################
 
-
+    
+    ########### hierarchical MCMC ##############
+    
     hier.mcmc <- function(settings, gp.stack, nstack, nmcmc, rng,
                           global.prior.fn.all, jmp0, prior.ind.all, n.param, nsites){
+      
+      
+      #
+      #      ### priors
+      #      mu_f    : prior mean vector
+      #      P_f     : prior covariance matrix
+      #      P_f_inv : prior precision matrix
+      #
+      #      mu_global ~ MVN (mu_f, P_f)
+      #
       
       # prior mean vector
       mu_f     <- sapply(global.prior.fn.all$qprior, function(x) eval(x, list(p = c(0.5))))[prior.ind.all] 
       P_f      <- diag((jmp0)^2) # prior covariance matrix
-      P_f_inv  <- solve(P_f) # prior precision matrix
+      P_f_inv  <- solve(P_f)     # prior precision matrix
       
-      # initialize jcov.arr
+      # initialize jcov.arr (jump variances per site)
       jcov.arr <-  array(NA_real_, c(sum(n.param), sum(n.param), nsites))
       for(j in seq_len(nsites)) jcov.arr[,,j] <- P_f
       
       # initialize mu_global
       mu_global <- mvtnorm::rmvnorm(1, mu_f, P_f)
       
+      
+      #
+      #      ### priors
+      #      tau_df    : Wishart degrees of freedom
+      #      tau_V     : Wishart scale matrix
+      #      tau_global ~ W (tau_df, tau_scale)
+      #      sigma_global <- solve(tau_global)
+      #
+      
       # initialize tau_global
       tau_df <- nsites + sum(n.param) + 1
       tau_V  <- diag(1, sum(n.param))
-      V_inv  <- solve(tau_V)
+      V_inv  <- solve(tau_V)  # will be used in gibbs updating
       tau_global   <- rWishart(1, tau_df, tau_V)[,,1]
       
       # initialize mu_site
       sigma_global <- solve(tau_global) 
       mu_site_curr <- matrix(NA_real_, nrow = nsites, ncol= sum(n.param))
-      for( i in 1:nsites){
+      mu_site_new  <- matrix(NA_real_, nrow = nsites, ncol= sum(n.param))
+      for(ns in 1:nsites){
         repeat{
-          mu_site_curr[i,] <- mvtnorm::rmvnorm(1, mu_global, sigma_global) # site mean
+          mu_site_curr[ns,] <- mvtnorm::rmvnorm(1, mu_global, sigma_global) # site mean
           check.that <- sapply(seq_len(sum(n.param)), function(x) {
-            chk <- (mu_site_curr[i,x] > rng[x, 1] & mu_site_curr[i,x] < rng[x, 2]) 
+            chk <- (mu_site_curr[ns,x] > rng[x, 1] & mu_site_curr[ns,x] < rng[x, 2]) 
             return(chk)})
           
           if(all(check.that)) break
         }
       }
-      mu_site_new  <- mu_site_curr
       
       currSS    <- sapply(seq_len(nsites), function(v) PEcAn.emulator::get_ss(gp.stack[[v]], mu_site_curr[v,]))
       currllp   <- lapply(seq_len(nsites), function(v) PEcAn.assim.batch::pda.calc.llik.par(settings, nstack[[v]], currSS[,v]))
@@ -819,7 +823,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         
         # update tau
         tau_global <- rWishart(1, df = tau_df, Sigma = tau_sigma)[,,1] # site precision
-        sigma_global <- solve(tau_global) # site covariance
+        sigma_global <- solve(tau_global) # site covariance, new prior sigma
         
         
         ########################################
@@ -836,7 +840,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         
         global_mu <- global_Sigma %*% ((nsites * tau_global %*% colMeans(mu_site_curr)) + (P_f_inv %*% mu_f))
         
-        mu_global <- mvtnorm::rmvnorm(1, global_mu, global_Sigma)
+        mu_global <- mvtnorm::rmvnorm(1, global_mu, global_Sigma) # new prior mu
         
         
         # site level M-H
@@ -856,11 +860,11 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         #   mu_site_curr[s,] <- cand[sample(which(any.check), 1), ] 
         # }
         
-        for(s in seq_len(nsites)){
+        for(ns in seq_len(nsites)){
           repeat{
-            mu_site_new[s,] <- mvtnorm::rmvnorm(1, mu_site_curr[s,], jcov.arr[,,s])
+            mu_site_new[ns,] <- mvtnorm::rmvnorm(1, mu_site_curr[ns,], jcov.arr[,,s])
             check.that <- sapply(seq_len(sum(n.param)), function(x) {
-              chk <- (mu_site_new[s,x] > rng[x, 1] & mu_site_new[s,x] < rng[x, 2]) 
+              chk <- (mu_site_new[ns,x] > rng[x, 1] & mu_site_new[ns,x] < rng[x, 2]) 
               return(chk)})
             
             if(all(check.that)) break
@@ -873,6 +877,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         
         # calculate posterior
         currLL    <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[,v], llik.fn, currllp[[v]]))
+        # use new priors for calculating prior probability
         currPrior <- mvtnorm::dmvnorm(mu_site_curr, mu_global, sigma_global, log = TRUE)
         currPost  <- currLL + currPrior
         
@@ -883,6 +888,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         # calculate posterior
         newllp   <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], newSS[,v]))
         newLL    <- sapply(seq_len(nsites), function(v) pda.calc.llik(newSS[,v], llik.fn, newllp[[v]]))
+        # use new priors for calculating prior probability
         newPrior <- dmvnorm(mu_site_new, mu_global, sigma_global, log = TRUE)
         newPost  <- newLL + newPrior
         
