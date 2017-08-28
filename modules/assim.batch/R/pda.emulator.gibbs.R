@@ -96,7 +96,7 @@ pda.emulator.gibbs <- function(settings, external.priors = NULL, params.id = NUL
   inputs.list    <- list()
   knotpar.list   <- list()
   
-  for(s in 1){ # site - run loop
+  for(s in 1:5){ # site - run loop
     
     settings <- multi.settings[[s]]
     
@@ -130,31 +130,34 @@ pda.emulator.gibbs <- function(settings, external.priors = NULL, params.id = NUL
     inputs      <- load.pda.data(settings, bety)
     n.input     <- length(inputs)
     
-    if(s==2){
-      mic.obs <- rep(NA, 35040)
-      ink <- seq(1, 35040, by =2)
-      mic.obs[ink] <-  inputs[[1]]$obs
-      inputs[[1]]$obs <- mic.obs
-      
-      
-      mic.nee <- rep(NA, 35040)
-      mic.nee[ink] <-  inputs[[1]]$data$NEE
-      
-      mic.ust <- rep(NA, 35040)
-      mic.ust[ink] <-  inputs[[1]]$data$UST
-      
-      mic.dt <-  inputs.list[[1]][[1]]$data$datetime
-      mic.px <-  inputs.list[[1]][[1]]$data$posix
-      mic.yr <-  inputs.list[[1]][[1]]$data$year
-      
-      inputs[[1]]$data <- data.frame(NEE = mic.nee,
-                                     UST = mic.ust,
-                                     datetime = mic.dt,
-                                     posix = mic.px,
-                                     year = mic.yr)
-      inputs[[1]]$n <- sum(!is.na(inputs[[1]]$obs))
-
-    }
+    # if(s==2){
+    #   
+    #   inputs <- pda.neff.calc(inputs)
+    #   
+    #   mic.obs <- rep(NA, 35040)
+    #   ink <- seq(1, 35040, by =2)
+    #   mic.obs[ink] <-  inputs[[1]]$obs
+    #   inputs[[1]]$obs <- mic.obs
+    #   
+    #   
+    #   mic.nee <- rep(NA, 35040)
+    #   mic.nee[ink] <-  inputs[[1]]$data$NEE
+    #   
+    #   mic.ust <- rep(NA, 35040)
+    #   mic.ust[ink] <-  inputs[[1]]$data$UST
+    #   
+    #   mic.dt <-  inputs.list[[1]][[1]]$data$datetime
+    #   mic.px <-  inputs.list[[1]][[1]]$data$posix
+    #   mic.yr <-  inputs.list[[1]][[1]]$data$year
+    #   
+    #   inputs[[1]]$data <- data.frame(NEE = mic.nee,
+    #                                  UST = mic.ust,
+    #                                  datetime = mic.dt,
+    #                                  posix = mic.px,
+    #                                  year = mic.yr)
+    #   inputs[[1]]$n <- sum(!is.na(inputs[[1]]$obs))
+    # 
+    # }
     ## Select parameters to constrain
     prior.ind <- lapply(seq_along(settings$pfts), 
                         function(x) which(pname[[x]] %in% settings$assim.batch$param.names[[x]]))
@@ -421,7 +424,7 @@ pda.emulator.gibbs <- function(settings, external.priors = NULL, params.id = NUL
   ## -------------------------------------- Local MCMC ------------------------------------------ 
   if(local){ # local - if
     
-    for(s in seq_along(multi.settings)){ 
+    for(s in 1:5){ 
       
       settings <- multi.settings[[s]]
       
@@ -585,8 +588,9 @@ pda.emulator.gibbs <- function(settings, external.priors = NULL, params.id = NUL
     inputs.all[[1]] <- list()
     mic.obs <- rep(NA, 35040)
     ink <- seq(1, 35040, by =2)
-    mic.obs[ink] <- inputs.list[[1]][[1]]$obs
+    mic.obs[ink] <- inputs.list[[2]][[1]]$obs
     inputs.all[[1]]$obs <- c(rowMeans(cbind(mic.obs,
+                                     inputs.list[[1]][[1]]$obs,
                                      inputs.list[[3]][[1]]$obs,
                                      inputs.list[[4]][[1]]$obs,
                                      inputs.list[[5]][[1]]$obs), na.rm=TRUE))
@@ -600,7 +604,7 @@ pda.emulator.gibbs <- function(settings, external.priors = NULL, params.id = NUL
     inputs.all[[1]]$variable.id <- "297"
     inputs.all <- pda.neff.calc(inputs.all)
     
-    for(s in 3:5){
+    for(s in 1:5){
       
       settings <- multi.settings[[s]]
       
@@ -612,15 +616,15 @@ pda.emulator.gibbs <- function(settings, external.priors = NULL, params.id = NUL
           all.bias <- NULL
         }
         ## calculate error statistics and save in the DB      
-        pda.errors[[i]] <- pda.calc.error(settings, con, model_out = model.out.list[[s]][[i]], run.id = run.ids[i], inputs.all, bias.terms = all.bias)
+        pda.errors[[i]] <- pda.calc.error(settings, con, model_out = model.out.list[[s]][[i]], run.id = run.ids[i], inputs.list[[s]], bias.terms = all.bias)
       } 
       
       current.step <- paste0("pda.calc.error - site: ", s)
       save(list = ls(all.names = TRUE),envir=environment(),file=pda.restart.file)
       
       # retrieve n
-      n.of.obs <- sapply(inputs.all,`[[`, "n") 
-      names(n.of.obs) <- sapply(model.out[[1]],names)
+      n.of.obs <- sapply(inputs.list[[s]],`[[`, "n") 
+      names(n.of.obs) <- sapply(model.out.list[[1]][[1]],names)
       
       
 
@@ -920,8 +924,8 @@ pda.emulator.gibbs <- function(settings, external.priors = NULL, params.id = NUL
       # prior mean vector
       # mu_f     <- sapply(global.prior.fn.all$qprior, function(x) eval(x, list(p = c(0.5))))[prior.ind.all] 
       # P_f      <- diag((jmp0)^2) # prior covariance matrix
-      mu_f     <- prior.all[prior.ind.all,2] 
-      P_f      <- diag(prior.all[prior.ind.all,3])  # prior covariance matrix
+      mu_f     <- (prior.all[prior.ind.all,2] + prior.all[prior.ind.all,3])/2 
+      P_f      <- diag((prior.all[prior.ind.all,2] + prior.all[prior.ind.all,3])/4)  # prior covariance matrix
       P_f_inv  <- solve(P_f)     # prior precision matrix
       
       # initialize jcov.arr (jump variances per site)
@@ -1016,9 +1020,11 @@ pda.emulator.gibbs <- function(settings, external.priors = NULL, params.id = NUL
         # global_Sigma  : sum of mu_site and mu_f precision
         
         
-        global_Sigma <- solve(P_f_inv + (nsites * tau_global))
+        global_Sigma <- P_f_inv + (nsites * tau_global)
         
-        global_mu <- global_Sigma %*% ((nsites * tau_global %*% colMeans(mu_site_curr)) + (P_f_inv %*% mu_f))
+        #global_mu <- global_Sigma %*% ((nsites * tau_global %*% colMeans(mu_site_curr)) + (P_f_inv %*% mu_f))
+        
+        global_mu <- solve(global_Sigma) %*% ((P_f_inv %*% mu_f) + tau_global %*% colSums(mu_site_curr) ) 
         
         mu_global <- mvtnorm::rmvnorm(1, global_mu, global_Sigma) # new prior mu to be used below for prior prob. calc.
         

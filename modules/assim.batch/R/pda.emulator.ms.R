@@ -775,11 +775,21 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         
         # adapt
         if ((g > 2) && ((g - 1) %% settings$assim.batch$jump$adapt == 0)) {
+          
+          # update site level jvars
           params.recent <- mu_site_samp[(g - settings$assim.batch$jump$adapt):(g - 1), , ]
           #colnames(params.recent) <- names(x0)
           jcov.list <- lapply(seq_len(nsites), function(v) pda.adjust.jumps.bs(settings, jcov.arr[,,v], accept.count[v], params.recent[,,v]))
           jcov.arr  <- abind(jcov.list, along=3)
-          accept.count <- rep(0, nsites)  # Reset counter
+          musite.accept.count <- rep(0, nsites)  # Reset counter
+          
+          # update global jvars
+          params.recent <- mu_global_samp[(g - settings$assim.batch$jump$adapt):(g - 1), , ]
+          #colnames(params.recent) <- names(x0)
+          jcov.list <- lapply(seq_len(nsites), function(v) pda.adjust.jumps.bs(settings, jcov.arr[,,v], accept.count[v], params.recent[,,v]))
+          jcov.arr  <- abind(jcov.list, along=3)
+          musite.accept.count <- rep(0, nsites)  # Reset counter
+          
         }
         
         

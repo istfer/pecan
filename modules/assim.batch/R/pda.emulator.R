@@ -244,7 +244,7 @@ pda.emulator <- function(settings, external.data = NULL, external.priors = NULL,
       ## Retrieve model outputs and error statistics
       model.out <- list()
       pda.errors <- list()
-    
+      5150.957
     
       ## read model outputs    
       for (i in seq_len(settings$assim.batch$n.knot)) {
