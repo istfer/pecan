@@ -8,7 +8,7 @@
 ##'
 ##' @author Istem Fer
 ##' @export
-pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, param.names = NULL, prior.id = NULL, 
+pda.emulator.gibbs <- function(settings, external.priors = NULL, params.id = NULL, param.names = NULL, prior.id = NULL, 
                             chain = NULL, iter = NULL, adapt = NULL, adj.min = NULL, 
                             ar.target = NULL, jvar = NULL, n.knot = NULL) {
   
@@ -92,8 +92,11 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
   gp.stack       <- list()
   prior.stack    <- list()
   nstack         <- list()
+  model.out.list <- list()
+  inputs.list    <- list()
+  knotpar.list   <- list()
   
-  for(s in seq_along(multi.settings)){ # site - run loop
+  for(s in 1){ # site - run loop
     
     settings <- multi.settings[[s]]
     
@@ -113,7 +116,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     
     ## Load priors
     if(is.null(external.priors)){
-      temp        <- pda.load.priors(settings, bety$con, run.normal)
+      temp        <- pda.load.priors(settings, bety$con, TRUE)
       prior.list  <- temp$prior
       settings    <- temp$settings
     }else{
@@ -127,6 +130,31 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     inputs      <- load.pda.data(settings, bety)
     n.input     <- length(inputs)
     
+    if(s==2){
+      mic.obs <- rep(NA, 35040)
+      ink <- seq(1, 35040, by =2)
+      mic.obs[ink] <-  inputs[[1]]$obs
+      inputs[[1]]$obs <- mic.obs
+      
+      
+      mic.nee <- rep(NA, 35040)
+      mic.nee[ink] <-  inputs[[1]]$data$NEE
+      
+      mic.ust <- rep(NA, 35040)
+      mic.ust[ink] <-  inputs[[1]]$data$UST
+      
+      mic.dt <-  inputs.list[[1]][[1]]$data$datetime
+      mic.px <-  inputs.list[[1]][[1]]$data$posix
+      mic.yr <-  inputs.list[[1]][[1]]$data$year
+      
+      inputs[[1]]$data <- data.frame(NEE = mic.nee,
+                                     UST = mic.ust,
+                                     datetime = mic.dt,
+                                     posix = mic.px,
+                                     year = mic.yr)
+      inputs[[1]]$n <- sum(!is.na(inputs[[1]]$obs))
+
+    }
     ## Select parameters to constrain
     prior.ind <- lapply(seq_along(settings$pfts), 
                         function(x) which(pname[[x]] %in% settings$assim.batch$param.names[[x]]))
@@ -195,11 +223,17 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       }
     }
     
+    model.out.list[[s]] <- model.out
+    
     current.step <- paste0("pda.get.model.output - site: ", s)
     save(list = ls(all.names = TRUE),envir=environment(),file=pda.restart.file)
     
+    inputs[[1]]$obs[inputs[[1]]$data$UST < 0.4] <- NA
+    inputs[[1]]$n <- sum(!is.na(inputs[[1]]$obs))
     # efficient sample size calculation
     inputs <- pda.neff.calc(inputs)
+    
+    inputs.list[[s]] <- inputs
     
     # handle bias parameters if multiplicative Gaussian is listed in the likelihoods
     if(any(unlist(any.mgauss) == "multipGauss")) {
@@ -313,7 +347,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     
     
     SS <- SS.list
-    
+    knotpar.list[[s]] <- X
     
     logger.info(paste0("Using 'mlegp' package for Gaussian Process Model fitting."))
     
@@ -395,8 +429,8 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       prior.fn.all <- pda.define.prior.fn(prior.stack[[s]])
       
       # define range to make sure mcmc.GP doesn't propose new values outside
-      rng <- matrix(c(sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 1e-05)),
-                      sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 0.99999))),
+      rng <- matrix(c(sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 1e-03)),
+                      sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 0.999))),
                     nrow = sum(n.param))
       
       resume.list <- list()
@@ -544,6 +578,150 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
   ## -------------------------------------- Global MCMC ------------------------------------------ 
   if(global){ # global - if
     
+    
+    # prepare input data
+    # 1-3539, 2-16359, 3-7357, 4-7096, 5-13214
+    inputs.all <- list()
+    inputs.all[[1]] <- list()
+    mic.obs <- rep(NA, 35040)
+    ink <- seq(1, 35040, by =2)
+    mic.obs[ink] <- inputs.list[[1]][[1]]$obs
+    inputs.all[[1]]$obs <- c(rowMeans(cbind(mic.obs,
+                                     inputs.list[[3]][[1]]$obs,
+                                     inputs.list[[4]][[1]]$obs,
+                                     inputs.list[[5]][[1]]$obs), na.rm=TRUE))
+    
+    AMFq  <- rep(0, length(inputs.all[[1]]$obs))
+    flags <- TRUE
+    
+    AMF.params <- flux.uncertainty(inputs.all[[1]]$obs, AMFq, flags, bin.num = 20)
+    inputs.all[[1]]$par <- c(AMF.params$intercept, AMF.params$slopeP, AMF.params$slopeN)
+    inputs.all[[1]]$n <- 35040
+    inputs.all[[1]]$variable.id <- "297"
+    inputs.all <- pda.neff.calc(inputs.all)
+    
+    for(s in 3:5){
+      
+      settings <- multi.settings[[s]]
+      
+      for (i in seq_len(settings$assim.batch$n.knot)) {
+        if(!is.null(bias.terms)){
+          all.bias <- lapply(bias.terms, function(n) n[i,])
+          all.bias <- do.call("rbind", all.bias)
+        } else {
+          all.bias <- NULL
+        }
+        ## calculate error statistics and save in the DB      
+        pda.errors[[i]] <- pda.calc.error(settings, con, model_out = model.out.list[[s]][[i]], run.id = run.ids[i], inputs.all, bias.terms = all.bias)
+      } 
+      
+      current.step <- paste0("pda.calc.error - site: ", s)
+      save(list = ls(all.names = TRUE),envir=environment(),file=pda.restart.file)
+      
+      # retrieve n
+      n.of.obs <- sapply(inputs.all,`[[`, "n") 
+      names(n.of.obs) <- sapply(model.out[[1]],names)
+      
+      
+
+      X <- SS.stack[[s]][[1]][, -ncol(SS.stack[[s]][[1]])]
+      
+
+      
+      # retrieve SS
+      error.statistics <- list()
+      SS.list <- list()
+      bc <- 1
+      
+      # what percentage of runs is allowed to fail?
+      if(!is.null(settings$assim.batch$allow.fail)){
+        allow.fail <- as.numeric(settings$assim.batch$allow.fail)
+      } else {
+        allow.fail <- 0.5
+      }
+      # what is it in number of runs?
+      no.of.allowed <- floor(settings$assim.batch$n.knot * allow.fail)
+      
+      for(inputi in seq_len(n.input)){
+        error.statistics[[inputi]] <- sapply(pda.errors,`[[`, inputi)
+        
+        if(unlist(any.mgauss)[inputi] == "multipGauss") {
+          
+          # if yes, then we need to include bias term in the emulator
+          #bias.probs <- bias.list$bias.probs
+          #biases <- c(t(bias.probs[[bc]]))
+          bias.params <- bias.list$bias.params
+          biases <- c(t(bias.params[[bc]]))
+          bc <- bc + 1
+          
+          # replicate model parameter set per bias parameter
+          rep.rows <- rep(1:nrow(X), each = nbias)
+          X.rep <- X[rep.rows,]
+          Xnew <- cbind(X.rep, biases)
+          colnames(Xnew) <- c(colnames(X.rep), paste0("bias.", names(n.of.obs)[inputi]))
+          SS.list[[inputi]] <- cbind(Xnew, c(error.statistics[[inputi]]))
+          
+        } else {
+          SS.list[[inputi]] <- cbind(X, error.statistics[[inputi]])
+        } # if-block
+        
+        # check failed runs and remove them if you'll have a reasonable amount of param sets after removal
+        # how many runs failed?
+        no.of.failed <- sum(is.na(SS.list[[inputi]][, ncol(SS.list[[inputi]])]))
+        
+        # check if you're left with enough sets
+        if(no.of.failed < no.of.allowed & (settings$assim.batch$n.knot - no.of.failed) > 1){
+          SS.list[[inputi]] <- SS.list[[inputi]][!rowSums(is.na(SS.list[[inputi]])), ]
+          if( no.of.failed  > 0){
+            logger.info(paste0(no.of.failed, " runs failed. Emulator for ", names(n.of.obs)[inputi], " will be built with ", settings$assim.batch$n.knot - no.of.failed, " knots."))
+          } 
+        } else{
+          logger.error(paste0("Too many runs failed, not enough parameter set to build emulator for ", names(n.of.obs)[inputi], "."))
+        }
+        
+      } # for-loop
+      
+      
+      SS <- SS.list
+      
+      
+      logger.info(paste0("Using 'mlegp' package for Gaussian Process Model fitting."))
+      
+      ## Generate emulator on SS, return a list ##
+      
+      # start the clock
+      ptm.start <- proc.time()
+      
+      # prepare for parallelization
+      dcores <- parallel::detectCores() - 1
+      ncores <- min(max(dcores, 1), length(SS))
+      
+      cl <- parallel::makeCluster(ncores, type="FORK")
+      
+      ## Parallel fit for GPs
+      GPmodel <- parallel::parLapply(cl, SS, function(x) mlegp::mlegp(X = x[, -ncol(x), drop = FALSE], Z = x[, ncol(x), drop = FALSE], verbose = 0))
+      # GPmodel <- lapply(SS, function(x) mlegp::mlegp(X = x[, -ncol(x), drop = FALSE], Z = x[, ncol(x), drop = FALSE], verbose = 0))
+      
+      parallel::stopCluster(cl)
+      
+      # Stop the clock
+      ptm.finish <- proc.time() - ptm.start
+      logger.info(paste0("GP fitting took ", paste0(round(ptm.finish[3])), " seconds."))
+      
+      SS.stack[[s]]       <- SS
+      gp.stack[[s]]       <- GPmodel
+      # without any bias factor and scaling factor all prior lists should be the same
+      # putting them into their own sublists as a reminder only
+      prior.stack[[s]]    <- prior.all 
+      multi.settings[[s]] <- settings
+      nstack[[s]] <- n.of.obs
+      
+      
+    }
+ 
+    current.step <- paste0("fit GP - site: ", s)
+    save(list = ls(all.names = TRUE),envir=environment(),file=pda.restart.file)
+    
     s<-1
     settings <- multi.settings[[s]]
     
@@ -551,8 +729,8 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     prior.fn.all <- pda.define.prior.fn(prior.stack[[s]])
     
     # define range to make sure mcmc.GP doesn't propose new values outside
-    rng <- matrix(c(sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 1e-05)),
-                    sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 0.99999))),
+    rng <- matrix(c(sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 1e-03)),
+                    sapply(prior.fn.all$qprior[prior.ind.all], eval, list(p = 0.999))),
                   nrow = sum(n.param))
     
     resume.list <- list()
@@ -700,7 +878,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
     settings <- multi.settings[[1]] # any site will do, will be used just for likelihood fcn info
     
     ## Set up prior functions accordingly
-    global.prior.fn.all <- pda.define.prior.fn(prior.stack[[1]])
+    global.prior.fn.all <- pda.define.prior.fn(prior.stack[[s]])
     
 
     for (c in seq_len(settings$assim.batch$chain)) {
@@ -708,9 +886,9 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
                               function(x) 0.1 * diff(eval(x, list(p = c(0.05, 0.95)))))[prior.ind.all]
       jmp.list[[c]] <- sqrt(jmp.list[[c]])
       
-      init.x <- lapply(prior.ind.all, function(v) eval(global.prior.fn.all$rprior[[v]], list(n = 1)))
-      names(init.x) <- rownames(prior.stack[[s]])[prior.ind.all]
-      init.list[[c]] <- init.x
+      # init.x <- lapply(prior.ind.all, function(v) eval(global.prior.fn.all$rprior[[v]], list(n = 1)))
+      # names(init.x) <- rownames(prior.stack[[s]])[prior.ind.all]
+      # init.list[[c]] <- init.x
     }
     
 
@@ -730,9 +908,22 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
                           global.prior.fn.all, jmp0, prior.ind.all, n.param, nsites){
       
       
-      # initialize
-      mu_global <- init.list[[1]]
-
+      #
+      #      ### priors
+      #      mu_f    : prior mean vector
+      #      P_f     : prior covariance matrix
+      #      P_f_inv : prior precision matrix
+      #
+      #      mu_global ~ MVN (mu_f, P_f)
+      #
+      
+      # prior mean vector
+      # mu_f     <- sapply(global.prior.fn.all$qprior, function(x) eval(x, list(p = c(0.5))))[prior.ind.all] 
+      # P_f      <- diag((jmp0)^2) # prior covariance matrix
+      mu_f     <- prior.all[prior.ind.all,2] 
+      P_f      <- diag(prior.all[prior.ind.all,3])  # prior covariance matrix
+      P_f_inv  <- solve(P_f)     # prior precision matrix
+      
       # initialize jcov.arr (jump variances per site)
       jcov.arr <-  array(NA_real_, c(sum(n.param), sum(n.param), nsites))
       for(j in seq_len(nsites)) jcov.arr[,,j] <- diag(jmp0)
@@ -741,15 +932,27 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       mu_global <- mvtnorm::rmvnorm(1, mu_f, diag(jmp0))
       
       
+      #
+      #      ### priors
+      #      tau_df    : Wishart degrees of freedom
+      #      tau_V     : Wishart scale matrix
+      #      tau_global ~ W (tau_df, tau_scale)
+      #      sigma_global <- solve(tau_global)
+      #
+      
       # initialize tau_global
-      tau_global   <- diag(1, sum(n.param))
+      tau_df <- nsites + sum(n.param) + 1
+      tau_V  <- diag(1, sum(n.param))
+      V_inv  <- solve(tau_V)  # will be used in gibbs updating
+      tau_global   <- rWishart(1, tau_df, tau_V)[,,1]
       
       # initialize mu_site
+      sigma_global <- solve(tau_global) 
       mu_site_curr <- matrix(NA_real_, nrow = nsites, ncol= sum(n.param))
       mu_site_new  <- matrix(NA_real_, nrow = nsites, ncol= sum(n.param))
       for(ns in 1:nsites){
         repeat{
-          mu_site_curr[ns,] <- mvtnorm::rmvnorm(1, mu_global, jcov.arr[,,ns]) # site mean
+          mu_site_curr[ns,] <- mvtnorm::rmvnorm(1, mu_global, sigma_global) # site mean
           check.that <- sapply(seq_len(sum(n.param)), function(x) {
             chk <- (mu_site_curr[ns,x] > rng[x, 1] & mu_site_curr[ns,x] < rng[x, 2]) 
             return(chk)})
@@ -759,7 +962,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       }
       
       currSS    <- sapply(seq_len(nsites), function(v) PEcAn.emulator::get_ss(gp.stack[[v]], mu_site_curr[v,]))
-      currllp   <- lapply(seq_len(nsites), function(v) PEcAn.assim.batch::pda.calc.llik.par(settings, nstack[[v]], currSS[,v]))
+      currllp   <- lapply(seq_len(nsites), function(v) PEcAn.assim.batch::pda.calc.llik.par(settings, nstack[[v]], currSS[v]))
       
       # storage
       mu_site_samp <-  array(NA_real_, c(nmcmc, sum(n.param), nsites))
@@ -767,9 +970,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
       mu_global_samp  <-  matrix(NA_real_, nrow = nmcmc, ncol= sum(n.param))
       tau_global_samp <-  array(NA_real_, c(nmcmc, sum(n.param), sum(n.param)))
       
-      musite.accept.count    <- rep(0, nsites)
-      muglobal.accept.count  <- 0
-      tauglobal.accept.count <- 0
+      accept.count <- rep(0, nsites)
       
       for(g in seq_len(nmcmc)){
         
@@ -843,7 +1044,7 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         currSS    <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_curr[v,]))
         
         # calculate posterior
-        currLL    <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[,v], llik.fn, currllp[[v]]))
+        currLL    <- sapply(seq_len(nsites), function(v) pda.calc.llik(currSS[v], llik.fn, currllp[[v]]))
         # use new priors for calculating prior probability
         currPrior <- mvtnorm::dmvnorm(mu_site_curr, mu_global, sigma_global, log = TRUE)
         currPost  <- currLL + currPrior
@@ -853,8 +1054,8 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
         newSS <- sapply(seq_len(nsites), function(v) get_ss(gp.stack[[v]], mu_site_new[v,]))
         
         # calculate posterior
-        newllp   <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], newSS[,v]))
-        newLL    <- sapply(seq_len(nsites), function(v) pda.calc.llik(newSS[,v], llik.fn, newllp[[v]]))
+        newllp   <- lapply(seq_len(nsites), function(v) pda.calc.llik.par(settings, nstack[[v]], newSS[v]))
+        newLL    <- sapply(seq_len(nsites), function(v) pda.calc.llik(newSS[v], llik.fn, newllp[[v]]))
         # use new priors for calculating prior probability
         newPrior <- dmvnorm(mu_site_new, mu_global, sigma_global, log = TRUE)
         newPost  <- newLL + newPrior
@@ -929,4 +1130,4 @@ pda.emulator.ms <- function(settings, external.priors = NULL, params.id = NULL, 
   
   return(settings)
   
-}  ## end pda.emulator.ms
+}  ## end pda.emulator.gibbs
