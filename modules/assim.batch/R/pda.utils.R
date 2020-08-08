@@ -1171,7 +1171,7 @@ prepare_pda_remote <- function(settings, site = 1, multi_site_objects){
   cat(paste0("#$ -q '", gsub( " .*$", "", sub(".*-q ", "", settings$host$qsub)), "'\n"), file = local_sub_file, append = TRUE) 
   cat(paste0("#$ -l h_rt=", gsub( " .*$", "", sub(".*h_rt=", "", settings$host$qsub)), "\n"), file = local_sub_file, append = TRUE) 
   cat(paste0("#$ -N emulator_s", site,"\n"), file = local_sub_file, append = TRUE)
-  cat(paste0("#$ -pe omp ", length(settings$assim.batch$inputs), "\n"), file = local_sub_file, append = TRUE)
+  cat(paste0("#$ -pe omp ", length(settings$assim.batch$chain), "\n"), file = local_sub_file, append = TRUE)
   cat(paste0("#cd ", remote_dir, "\n"), file = local_sub_file, append = TRUE)
   cat(paste0("#", settings$host$prerun, "\n"), file = local_sub_file, append = TRUE)
   cat(paste0("Rscript remote_emulator_s",site,".R\n"), file = local_sub_file, append = TRUE)
@@ -1183,6 +1183,7 @@ prepare_pda_remote <- function(settings, site = 1, multi_site_objects){
   local_script_file <- paste0(settings$outdir, "/remote_emulator_s",site,".R")
   first_lines <- c("rm(list=ls(all=TRUE))\n", 
                    "library(PEcAn.assim.batch)\n", 
+                   "library(dplyr)\n",
                    "library(PEcAn.benchmark)\n", 
                    paste0("load(\"",remote_object_file,"\")\n"),
     "settings <- multi_site_objects$settings\n", "external_priors <- multi_site_objects$priorlist\n", 
