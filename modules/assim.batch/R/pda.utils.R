@@ -1171,7 +1171,7 @@ prepare_pda_remote <- function(settings, site = 1, multi_site_objects){
   cat(paste0("#$ -q '", gsub( " .*$", "", sub(".*-q ", "", settings$host$qsub)), "'\n"), file = local_sub_file, append = TRUE) 
   cat(paste0("#$ -l h_rt=", gsub( " .*$", "", sub(".*h_rt=", "", settings$host$qsub)), "\n"), file = local_sub_file, append = TRUE) 
   cat(paste0("#$ -N emulator_s", site,"\n"), file = local_sub_file, append = TRUE)
-  cat(paste0("#$ -pe omp ", length(settings$assim.batch$chain), "\n"), file = local_sub_file, append = TRUE)
+  cat(paste0("#$ -pe omp ", settings$assim.batch$chain, "\n"), file = local_sub_file, append = TRUE)
   cat(paste0("#cd ", remote_dir, "\n"), file = local_sub_file, append = TRUE)
   cat(paste0("#", settings$host$prerun, "\n"), file = local_sub_file, append = TRUE)
   cat(paste0("Rscript remote_emulator_s",site,".R\n"), file = local_sub_file, append = TRUE)
