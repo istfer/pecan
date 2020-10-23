@@ -7,8 +7,17 @@ For more information about this file see also [Keep a Changelog](http://keepacha
 
 ## [Unreleased]
 
+### Due to dependencies, PEcAn is now using R 4.0.2 for Docker images.
+
+This is a major change:
+
+- Newer version of R 
+- Ubuntu 20.04 instead of Debian.
+
 ### Fixed
 
+- Removed sender.py and now allow the submission of workflows from inside the rstudio container.
+- Use TRAEFIK_FRONTEND_RULE in compose file and TRAEFIK_HOST in env.example, using TRAEFIK_HOST everywhere now. Make sure TRAEFIK_HOST is used in .env
 - Use initial biomass pools for Sorghum and Setaria #2495, #2496
 - PEcAn.DB::betyConnect() is now smarter, and will try to use either config.php or environment variables to create a connection. It has switched to use db.open helper function (#2632).
 - PEcAn.utils::tranformstats() assumed the statistic names column of its input was a factor. It now accepts character too, and returns the same class given as input (#2545).
@@ -25,10 +34,12 @@ For more information about this file see also [Keep a Changelog](http://keepacha
 - Update ED docker build, will now build version 2.2.0 and git
 - Do not override meta-analysis settings random-effects = FALSE https://github.com/PecanProject/pecan/pull/2625
 - model2netcdf.ED2 no longer detecting which varibles names `-T-` files have based on ED2 version (#2623)
- 
+- Changed docker-compose.yml to use user & group IDs of the operating system user (#2572)  
+-gSSURGO file download now added as inputs into BETY through extract_soil_gssurgo (#2666)
 
 ### Changed
 
+- Now using R 4.0.2 for Docker images. This is a major change. Newer version of R and using Ubuntu 20.04 instead of Debian.
 - Replaced `tmvtnorm` package with `TruncatedNormal` package for speed up per #2621.
 - Continuous integration changes: Added experimental GitHub Actions CI builds (#2544), streamlined Travis CI builds, added a fourth R version (second-newest old release; currently R 3.5) to Travis test matrix (#2592).
 - Functions that update database entries no longer pass `created_at` or `updated_at` timestamps. The database now updates these itself and ensures they are consistently in UTC (#1083).
@@ -37,15 +48,19 @@ For more information about this file see also [Keep a Changelog](http://keepacha
 - Renamed functions that looked like S3 methods but were not:
     * PEcAn.priors: `plot.posterior.density`->`plot_posterior.density`, `plot.prior.density`->`plot_prior.density`, `plot.trait`->`plot_trait` (#2439).
     * PEcAn.visualization: `plot.netcdf`->`plot_netcdf` (#2526).
+    * PEcAn.assim.sequential: `Remote.Sync.launcher` -> `Remote_Sync_launcher` (#2652)
 - Stricter package checking: `make check` and CI builds will now fail if `R CMD check` returns any ERRORs or any "newly-added" WARNINGs or NOTEs. "Newly-added" is determined by strict string comparison against a check result saved 2019-09-03; messages that exist in the reference result do not break the build but will be fixed as time allows in future refactorings (#2404).
 - No longer writing an arbitrary num for each PFT, this was breaking ED runs potentially.
 - The pecan/data container has no longer hardcoded path for postgres
 - PEcAn.JULES: Removed dependency on `ncdf4.helpers` package, which has been removed from CRAN (#2511).
 - data.remote: Arguments to the function `call_MODIS()` have been changed (issue #2519). 
 - Changed precipitaion downscale in `PEcAn.data.atmosphere::download.NOAA_GEFS_downscale`. Precipitation was being downscaled via a spline which was causing fake rain events. Instead the 6 hr precipitation flux values from GEFS are preserved with 0's filling in the hours between. 
+-Changed `dbfile.input.insert` to work with inputs (i.e soils) that don't have start and end dates associated with them 
 
 ### Added
 
+- Now creates docker images during a PR, when merged it will push them to docker hub and github packages
+- New functionality to the PEcAn API to GET information about PFTs, formats & sites, submit workflows in XML or JSON formats & download relevant inputs/outputs/files related to runs & workflows (#2674 #2665 #2662 #2655)
 - Functions to send/receive messages to/from rabbitmq.
 - Documentation in [DEV-INTRO.md](DEV-INTRO.md) on development in a docker environment (#2553)
 - PEcAn API that can be used to talk to PEcAn servers. Endpoints to GET the details about the server that user is talking to, PEcAn models, workflows & runs. Authetication enabled. (#2631)
