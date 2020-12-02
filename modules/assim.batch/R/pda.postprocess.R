@@ -8,12 +8,13 @@
 ##' @param prior prior list
 ##' @param prior.ind indices of targeted parameters
 ##' @param sffx suffix to the output files, e.g. "hierarchical"
+##' @param insert_only TRUE if there are post-processed files (i.e. from remote execution) that need DB insertion only
 ##'
 ##' @return PEcAn settings list, updated with <params.id> pointing to the new params file.
 ##'
 ##' @author Ryan Kelly, Istem Fer
 ##' @export
-pda.postprocess <- function(settings, con, mcmc.param.list, pname, prior, prior.ind, sffx = NULL) {
+pda.postprocess <- function(settings, con, mcmc.param.list, pname, prior, prior.ind, sffx = NULL, insert_only = FALSE) {
   
   # prepare for non-model params
   if(length(mcmc.param.list) > length(settings$pfts)){  
@@ -34,97 +35,161 @@ pda.postprocess <- function(settings, con, mcmc.param.list, pname, prior, prior.
     par.file.name <- NULL
   }
 
-  params.subset <- pda.plot.params(settings, mcmc.param.list, prior.ind, par.file.name, sffx)
-  
-  for (i in seq_along(settings$pfts)) {
+  if(insert_only){
     
-    ## Save params
-    filename.mcmc <- file.path(settings$pfts[[i]]$outdir, 
-                                paste0("mcmc.pda.", 
-                                      settings$pfts[[i]]$name, 
-                                      "_", 
-                                      settings$assim.batch$ensemble.id, 
-                                      sffx, ".Rdata"))
-
-    params.pft <- params.subset[[i]]
-    save(params.pft, file = filename.mcmc)
-    
-    if(!is.null(con)){
-      ## create a new Posteriors DB entry
-      pft.id <- PEcAn.DB::db.query(paste0("SELECT pfts.id FROM pfts, modeltypes WHERE pfts.name='",
-                                          settings$pfts[[i]]$name, 
-                                          "' and pfts.modeltype_id=modeltypes.id and modeltypes.name='", 
-                                          settings$model$type, "'"), 
-                                   con)[["id"]]
+    #this means everything is post-processed remotely, we just insert files to DB
+    params.subset <-vector("list", length(settings$pfts)) 
+    for (i in seq_along(settings$pfts)) {
       
+      ## Read params
+      filename.mcmc <- file.path(file.path(settings$outdir, "pft", basename(settings$pfts[[i]]$outdir)), 
+                                 paste0("mcmc.pda.", 
+                                        settings$pfts[[i]]$name, 
+                                        "_", 
+                                        settings$assim.batch$ensemble.id, 
+                                        sffx, ".Rdata"))
       
-      posteriorid <-  PEcAn.DB::db.query(paste0("INSERT INTO posteriors (pft_id) VALUES (",
-                                                pft.id, ") RETURNING id"), con)
+      load(filename.mcmc)
+      params.subset[[i]] <- params.pft
       
-      
-      PEcAn.logger::logger.info(paste0("--- Posteriorid for ", settings$pfts[[i]]$name, " is ", posteriorid, " ---"))
-      settings$pfts[[i]]$posteriorid <- posteriorid
-    }
-    
-    ## save named distributions
-    ## *** TODO: Generalize for multiple PFTS
-    post.distns <- PEcAn.MA::approx.posterior(trait.mcmc = params.subset[[i]], 
-                                    priors = prior[[i]], 
-                                    outdir = settings$pfts[[i]]$outdir, 
-                                    filename.flag = paste0(".pda.", settings$pfts[[i]]$name, "_", 
-                                                           settings$assim.batch$ensemble.id, sffx))
-    filename <- file.path(settings$pfts[[i]]$outdir, 
-                          paste0("post.distns.pda.", settings$pfts[[i]]$name, "_", 
-                                 settings$assim.batch$ensemble.id, sffx, ".Rdata"))
-    save(post.distns, file = filename)
-    
-    if(!is.null(con)){
-      PEcAn.DB::dbfile.insert(dirname(filename), basename(filename), "Posterior", posteriorid, con)
-    }
-
-    
-    # Symlink to post.distns.Rdata (no ensemble.id identifier)
-    if (file.exists(file.path(dirname(filename), "post.distns.Rdata"))) {
-      file.remove(file.path(dirname(filename), "post.distns.Rdata"))
-    }
-    file.symlink(filename, file.path(dirname(filename), "post.distns.Rdata"))
-    
-    ## coerce parameter output into the same format as trait.mcmc
-    pname <- rownames(post.distns)
-    trait.mcmc <- list()
-    for (v in seq_along(prior.ind[[i]])) {
-      beta.o <- array(params.subset[[i]][[v]], c(length(params.subset[[i]][[v]]), 1))
-      colnames(beta.o) <- "beta.o"
-      if (pname[prior.ind[[i]][v]] %in% names(trait.mcmc)) {
-        trait.mcmc[[pname[prior.ind[[i]][v]]]] <- coda::mcmc.list(coda::as.mcmc(beta.o))
-      } else {
-        k <- length(trait.mcmc) + 1
-        trait.mcmc[[k]] <- coda::mcmc.list(coda::as.mcmc(beta.o))
-        names(trait.mcmc)[k] <- pname[prior.ind[[i]]][v]
+      if(!is.null(con)){
+        ## create a new Posteriors DB entry
+        pft.id <- PEcAn.DB::db.query(paste0("SELECT pfts.id FROM pfts, modeltypes WHERE pfts.name='",
+                                            settings$pfts[[i]]$name, 
+                                            "' and pfts.modeltype_id=modeltypes.id and modeltypes.name='", 
+                                            settings$model$type, "'"), 
+                                     con)[["id"]]
+        
+        
+        posteriorid <-  PEcAn.DB::db.query(paste0("INSERT INTO posteriors (pft_id) VALUES (",
+                                                  pft.id, ") RETURNING id"), con)
+        
+        
+        PEcAn.logger::logger.info(paste0("--- Posteriorid for ", settings$pfts[[i]]$name, " is ", posteriorid, " ---"))
+        settings$pfts[[i]]$posteriorid <- posteriorid
       }
-    }
+      
+      
+      filename <- file.path(file.path(settings$outdir, "pft", basename(settings$pfts[[i]]$outdir)),
+                            paste0("post.distns.pda.", settings$pfts[[i]]$name, "_", 
+                                   settings$assim.batch$ensemble.id, sffx, ".Rdata"))
+      if(!is.null(con)){
+        PEcAn.DB::dbfile.insert(dirname(filename), basename(filename), "Posterior", posteriorid, con)
+      }
+      
+      ## get trait.mcmc filename
+      filename <- file.path(file.path(settings$outdir, "pft", basename(settings$pfts[[i]]$outdir)),
+                            paste0("trait.mcmc.pda.", 
+                                   settings$pfts[[i]]$name, 
+                                   "_", settings$assim.batch$ensemble.id, 
+                                   sffx, ".Rdata"))
+      
+      if(!is.null(con)){
+        PEcAn.DB::dbfile.insert(dirname(filename), basename(filename), "Posterior", posteriorid, con)
+      }
+      
+    }  #end of loop over PFTs
     
-    ## save updated parameter distributions as trait.mcmc so that they can be read by the ensemble code
-    ## *** TODO: Generalize for multiple PFTS
-    filename <- file.path(settings$pfts[[i]]$outdir,
-                          paste0("trait.mcmc.pda.", 
-                                 settings$pfts[[i]]$name, 
-                                 "_", settings$assim.batch$ensemble.id, 
-                                 sffx, ".Rdata"))
-    save(trait.mcmc, file = filename)
+    ## save updated settings XML
+    XML::saveXML(
+      PEcAn.settings::listToXml(settings, "pecan"),
+      file = file.path(
+        settings$outdir,
+        paste0("pecan.pda", settings$assim.batch$ensemble.id, ".xml")))
     
-    if(!is.null(con)){
-      PEcAn.DB::dbfile.insert(dirname(filename), basename(filename), "Posterior", posteriorid, con)
-    }
+  }else{
+    params.subset <- pda.plot.params(settings, mcmc.param.list, prior.ind, par.file.name, sffx)
     
-  }  #end of loop over PFTs
-  
-  ## save updated settings XML
-  XML::saveXML(
-    PEcAn.settings::listToXml(settings, "pecan"),
-    file = file.path(
-      dirname(settings$modeloutdir),
-      paste0("pecan.pda", settings$assim.batch$ensemble.id, ".xml")))
+    for (i in seq_along(settings$pfts)) {
+      
+      ## Save params
+      filename.mcmc <- file.path(settings$pfts[[i]]$outdir, 
+                                 paste0("mcmc.pda.", 
+                                        settings$pfts[[i]]$name, 
+                                        "_", 
+                                        settings$assim.batch$ensemble.id, 
+                                        sffx, ".Rdata"))
+      
+      params.pft <- params.subset[[i]]
+      save(params.pft, file = filename.mcmc)
+      
+      if(!is.null(con)){
+        ## create a new Posteriors DB entry
+        pft.id <- PEcAn.DB::db.query(paste0("SELECT pfts.id FROM pfts, modeltypes WHERE pfts.name='",
+                                            settings$pfts[[i]]$name, 
+                                            "' and pfts.modeltype_id=modeltypes.id and modeltypes.name='", 
+                                            settings$model$type, "'"), 
+                                     con)[["id"]]
+        
+        
+        posteriorid <-  PEcAn.DB::db.query(paste0("INSERT INTO posteriors (pft_id) VALUES (",
+                                                  pft.id, ") RETURNING id"), con)
+        
+        
+        PEcAn.logger::logger.info(paste0("--- Posteriorid for ", settings$pfts[[i]]$name, " is ", posteriorid, " ---"))
+        settings$pfts[[i]]$posteriorid <- posteriorid
+      }
+      
+      ## save named distributions
+      ## *** TODO: Generalize for multiple PFTS
+      post.distns <- PEcAn.MA::approx.posterior(trait.mcmc = params.subset[[i]], 
+                                                priors = prior[[i]], 
+                                                outdir = settings$pfts[[i]]$outdir, 
+                                                filename.flag = paste0(".pda.", settings$pfts[[i]]$name, "_", 
+                                                                       settings$assim.batch$ensemble.id, sffx))
+      filename <- file.path(settings$pfts[[i]]$outdir, 
+                            paste0("post.distns.pda.", settings$pfts[[i]]$name, "_", 
+                                   settings$assim.batch$ensemble.id, sffx, ".Rdata"))
+      save(post.distns, file = filename)
+      
+      if(!is.null(con)){
+        PEcAn.DB::dbfile.insert(dirname(filename), basename(filename), "Posterior", posteriorid, con)
+      }
+      
+      
+      # Symlink to post.distns.Rdata (no ensemble.id identifier)
+      if (file.exists(file.path(dirname(filename), "post.distns.Rdata"))) {
+        file.remove(file.path(dirname(filename), "post.distns.Rdata"))
+      }
+      file.symlink(filename, file.path(dirname(filename), "post.distns.Rdata"))
+      
+      ## coerce parameter output into the same format as trait.mcmc
+      pname <- rownames(post.distns)
+      trait.mcmc <- list()
+      for (v in seq_along(prior.ind[[i]])) {
+        beta.o <- array(params.subset[[i]][[v]], c(length(params.subset[[i]][[v]]), 1))
+        colnames(beta.o) <- "beta.o"
+        if (pname[prior.ind[[i]][v]] %in% names(trait.mcmc)) {
+          trait.mcmc[[pname[prior.ind[[i]][v]]]] <- coda::mcmc.list(coda::as.mcmc(beta.o))
+        } else {
+          k <- length(trait.mcmc) + 1
+          trait.mcmc[[k]] <- coda::mcmc.list(coda::as.mcmc(beta.o))
+          names(trait.mcmc)[k] <- pname[prior.ind[[i]]][v]
+        }
+      }
+      
+      ## save updated parameter distributions as trait.mcmc so that they can be read by the ensemble code
+      ## *** TODO: Generalize for multiple PFTS
+      filename <- file.path(settings$pfts[[i]]$outdir,
+                            paste0("trait.mcmc.pda.", 
+                                   settings$pfts[[i]]$name, 
+                                   "_", settings$assim.batch$ensemble.id, 
+                                   sffx, ".Rdata"))
+      save(trait.mcmc, file = filename)
+      
+      if(!is.null(con)){
+        PEcAn.DB::dbfile.insert(dirname(filename), basename(filename), "Posterior", posteriorid, con)
+      }
+      
+    }  #end of loop over PFTs
+    
+    ## save updated settings XML
+    XML::saveXML(
+      PEcAn.settings::listToXml(settings, "pecan"),
+      file = file.path(
+        dirname(settings$modeloutdir),
+        paste0("pecan.pda", settings$assim.batch$ensemble.id, ".xml")))
+  }
 
   return(settings)
 } # pda.postprocess

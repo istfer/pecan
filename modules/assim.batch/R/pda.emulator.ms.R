@@ -51,7 +51,7 @@ pda.emulator.ms <- function(multi.settings) {
                               tunnel_dir = dirname(multi.settings[[1]]$host$tunnel))
     
     # Until a check function is implemented, run a predefined number of emulator rounds
-    n_rounds <- ifelse(is.null(multi.settings[[1]]$assim.batch$n_rounds), 5, as.numeric(multi.settings[[1]]$assim.batch$n_rounds))
+    n_rounds <- ifelse(is.null(multi.settings[[1]]$assim.batch$n_rounds), 3, as.numeric(multi.settings[[1]]$assim.batch$n_rounds))
     PEcAn.logger::logger.info(n_rounds, " individual PDA rounds will be run per site. Please wait.")
     repeat{
      
@@ -99,12 +99,40 @@ pda.emulator.ms <- function(multi.settings) {
 
   }
   
-
+  ################ Register the final posteriors for individual PDA
   
+  ## Open database connection
+  if (multi.settings$database$bety$write) {
+    con <- try(PEcAn.DB::db.open(multi.settings$database$bety), silent = TRUE)
+    if (methods::is(con, "try-error")) {
+      con <- NULL
+    } else {
+      on.exit(PEcAn.DB::db.close(con))
+    }
+  } else {
+    con <- NULL
+  }
+  
+  obj_names <- c("settings", "mcmc.param.list", "pname", "prior.list", "prior.ind.orig")
+  
+  for(ms in seq_along(multi.settings)){
+    register_obj <- load_pda_history(workdir = multi.settings$outdir,  
+                                     ensemble.id = multi.settings[[ms]]$assim.batch$ensemble.id, 
+                                     objects = obj_names)
+    
+    pda.postprocess(settings = register_obj$settings, con = con, 
+                    mcmc.param.list = register_obj$mcmc.param.list, 
+                    pname = register_obj$pname, 
+                    prior = register_obj$prior.list, 
+                    prior.ind = register_obj$prior.ind.orig,
+                    insert_only = TRUE)
+  }
+ 
+
 
   ## -------------------------------- Prepare for Joint and Hierarchical ----------------------------------------- 
   
-  
+  ############# Prepare
   # we need some objects that are common to all calibrations
   obj_names <- c("init.list", "rng", "jmp.list", "prior.fn.all", "prior.ind.all", "llik.fn", 
     "settings", "prior.ind.all.ns", "sf", "prior.list", "n.param.orig", "pname", "prior.ind.orig",
@@ -147,18 +175,6 @@ pda.emulator.ms <- function(multi.settings) {
     remove(gp, SS)
     
   }
-
-  ## Open database connection
-  if (multi.settings$database$bety$write) {
-    con <- try(PEcAn.DB::db.open(multi.settings$database$bety), silent = TRUE)
-    if (methods::is(con, "try-error")) {
-      con <- NULL
-    } else {
-      on.exit(PEcAn.DB::db.close(con))
-    }
-  } else {
-    con <- NULL
-  }
   
   ## Get the workflow id
   if ("workflow" %in% names(tmp.settings)) {
@@ -175,7 +191,9 @@ pda.emulator.ms <- function(multi.settings) {
     tmp.settings$pfts[[i]]$outdir <- file.path(tmp.settings$outdir, "pft", basename(tmp.settings$pfts[[i]]$outdir))
   }
   tmp.settings$modeloutdir <- file.path(tmp.settings$outdir, basename(tmp.settings$modeloutdir))
+  
 
+  
   ## -------------------------------------- Joint calibration -------------------------------------------------- 
   if(joint){ # joint - if begin
     
@@ -356,7 +374,7 @@ pda.emulator.ms <- function(multi.settings) {
     mcmc.out <- parallel::parLapply(cl, seq_len(tmp.settings$assim.batch$chain), function(chain) {
       hier.mcmc(settings      = tmp.settings, 
                 gp.stack      = gp.stack, 
-                nmcmc         = tmp.settings$assim.batch$iter * 3, # need to run chains longer than indv
+                nmcmc         = tmp.settings$assim.batch$iter, 
                 rng_orig      = rng_orig,
                 jmp0          = jump_init[[chain]], 
                 mu_site_init  = mu_site_init[[chain]],
