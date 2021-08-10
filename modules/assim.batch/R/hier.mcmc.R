@@ -24,7 +24,7 @@
 
 hier.mcmc <- function(settings, gp.stack, nstack = NULL, nmcmc, rng_orig,
                      jmp0, mu_site_init, nparam, nsites, llik.fn, prior.fn.all, prior.ind.all){
-  
+
   pos.check <- sapply(settings$assim.batch$inputs, `[[`, "ss.positive")
   
   if(length(unlist(pos.check)) == 0){
@@ -126,18 +126,18 @@ hier.mcmc <- function(settings, gp.stack, nstack = NULL, nmcmc, rng_orig,
     
     # jump adaptation step
     if ((g > 2) && ((g - 1) %% settings$assim.batch$jump$adapt == 0)) {
-      
       # update site level jvars
       params.recent <- mu_site_samp[(g - settings$assim.batch$jump$adapt):(g - 1), , ]
       #colnames(params.recent) <- names(x0)
       settings$assim.batch$jump$adapt <- adapt_orig
-      jcov.list <- lapply(seq_len(nsites), function(v) pda.adjust.jumps.bs(settings, jcov.arr[,,v], musite.accept.count[v], 
-                                                                           params.recent[seq(v, adapt_orig * nsites, by=12), , v]))
+      jcov.list <- lapply(seq_len(nsites), function(v) pda.adjust.jumps.bs(settings, jcov.arr[,,v], musite.accept.count[v],
+                                                                           params.recent[seq(v, adapt_orig * nsites, by=nsites), , v]))
       jcov.list <- lapply(jcov.list, lqmm::make.positive.definite, tol=1e-12)
       jcov.arr  <- abind::abind(jcov.list, along=3)
       musite.accept.count <- rep(0, nsites)  # Reset counter
       settings$assim.batch$jump$adapt <- adapt_orig * nsites
     }
+    
     
     
     ########################################
@@ -159,7 +159,7 @@ hier.mcmc <- function(settings, gp.stack, nstack = NULL, nmcmc, rng_orig,
     
     pairwise_deviation <- apply(mu_site_curr, 1, function(r) r - t(mu_global))
     sum_term <- pairwise_deviation %*% t(pairwise_deviation)
-    
+        
     sigma_global_scale_gibbs <- sigma_global_scale + sum_term
     
     # update sigma
@@ -208,13 +208,31 @@ hier.mcmc <- function(settings, gp.stack, nstack = NULL, nmcmc, rng_orig,
     # propose new site parameter vectors
     thissite <- g %% nsites
     if(thissite == 0) thissite <- nsites
-    proposed <- TruncatedNormal::rtmvnorm(1, 
-                                   mu    = mu_site_curr[thissite,], 
-                                   sigma = jcov.arr[,,thissite],
-                                   lb    = rng_orig[,1],
-                                   ub    = rng_orig[,2])
-
+    
+    if(g>=(nsites+1)){
+      mu_site_curr[thissite,] <- mu_site_samp[(g-nsites),,thissite]
+    }
+    
+    proposed <- TruncatedNormal::rtmvnorm(1,
+                                          mu    = mu_site_curr[thissite,],
+                                          sigma = jcov.arr[,,thissite],
+                                          lb    = rng_orig[,1],
+                                          ub    = rng_orig[,2])
+    
     mu_site_new <- matrix(rep(proposed, nsites),ncol=nparam, byrow = TRUE)
+    
+    for(stind in seq_len(nsites)){
+      if(stind == thissite) next()
+      proposed <- TruncatedNormal::rtmvnorm(nparam*30,
+                                            mu    = mu_site_curr[stind,],
+                                            sigma = jcov.arr[,,stind],
+                                            lb    = rng_orig[,1],
+                                            ub    = rng_orig[,2])
+      d <- fields::rdist(proposed,matrix(mu_site_new[thissite,],ncol=nparam, nrow=1))
+      
+      mu_site_new[stind,] <- proposed[which.min(d),]
+    }
+    
     
     # re-predict current SS
     currSS <- sapply(seq_len(nsites), function(v) PEcAn.emulator::get_ss(gp.stack[[v]], mu_site_curr[v,], pos.check))
@@ -228,7 +246,7 @@ hier.mcmc <- function(settings, gp.stack, nstack = NULL, nmcmc, rng_orig,
     
     # calculate jump probabilities
     currHR <- sapply(seq_len(nsites), function(v) {
-      TruncatedNormal::dtmvnorm(mu_site_curr[v,], mu_site_new[v,], jcov.arr[,,v],
+      TruncatedNormal::dtmvnorm(mu_site_new[v,], mu_site_curr[v,], jcov.arr[,,v],
                          lb = rng_orig[,1],
                          ub = rng_orig[,2], log = TRUE, B = 1e2)
     })
@@ -246,7 +264,7 @@ hier.mcmc <- function(settings, gp.stack, nstack = NULL, nmcmc, rng_orig,
     
     # calculate jump probabilities
     newHR <- sapply(seq_len(nsites), function(v) {
-      TruncatedNormal::dtmvnorm(mu_site_new[v,], mu_site_curr[v,], jcov.arr[,,v],
+      TruncatedNormal::dtmvnorm(mu_site_curr[v,], mu_site_new[v,], jcov.arr[,,v],
                          lb = rng_orig[,1],
                          ub = rng_orig[,2], log = TRUE, B = 1e2)
     })

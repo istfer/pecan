@@ -362,8 +362,13 @@ pda.sort.params <- function(mcmc.out, sub.sample = "mu_global_samp", ns = NULL, 
   mcmc.samp.list <- list()
   
   for (c in seq_along(mcmc.out)) {
+    if(is.null(ns)){
+      m <- matrix(NA, nrow =  nrow(mcmc.out[[c]][[sub.sample]]), ncol = length(prior.ind.all.ns))
+    }else{
+      
+      m <- matrix(NA, nrow =  length(seq(ns, nrow(mcmc.out[[c]][[sub.sample]]),by = 12)), ncol = length(prior.ind.all.ns))
+    }
     
-    m <- matrix(NA, nrow =  nrow(mcmc.out[[c]][[sub.sample]]), ncol = length(prior.ind.all.ns))
     
     # TODO: make this sf compatible for multi site
     if(!is.null(sf)){
@@ -394,7 +399,7 @@ pda.sort.params <- function(mcmc.out, sub.sample = "mu_global_samp", ns = NULL, 
         if(is.null(ns)){
           m[, i] <- mcmc.out[[c]][[sub.sample]][, idx]
         }else{
-          m[, i] <- mcmc.out[[c]][[sub.sample]][, idx, ns]
+          m[, i] <- mcmc.out[[c]][[sub.sample]][seq(ns, nrow(mcmc.out[[c]][[sub.sample]]), by=12), idx, ns]
         }
         
 

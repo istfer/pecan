@@ -43,7 +43,7 @@ read.ensemble.output <- function(ensemble.size, pecandir, outdir, start.year, en
   for (row in rownames(ens.run.ids)) {
     run.id <- ens.run.ids[row, "id"]
     PEcAn.logger::logger.info("reading ensemble output from run id: ", format(run.id, scientific = FALSE))
-
+    
     for(var in seq_along(variables)){
       out.tmp <- PEcAn.utils::read.output(run.id, file.path(outdir, run.id), start.year, end.year, variables[var])
       assign(variables[var], out.tmp[[variables[var]]])
@@ -111,7 +111,7 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
       random.samples <- as.matrix(random.samples)
     } else if (method == "sobol") {
       PEcAn.logger::logger.info("Using ", method, "method for sampling")
-      random.samples <- randtoolbox::sobol(n = ensemble.size, dim = total.sample.num, ...)
+      random.samples <- randtoolbox::sobol(n = ensemble.size, dim = total.sample.num, scrambling = 3, ...)
       ## force as a matrix in case length(samples)=1
       random.samples <- as.matrix(random.samples)
     } else if (method == "torus") {
@@ -146,12 +146,22 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
       
       # meaning we want to keep MCMC samples together
       if(length(pft.samples[[pft.i]])>0 & !is.null(param.names)){ 
-        # TODO: for now we are sampling row numbers uniformly
-        # stop if other methods were requested 
-        if(method != "uniform"){
-          PEcAn.logger::logger.severe("Only uniform sampling is available for joint sampling at the moment. Other approaches are not implemented yet.")
+        if (method == "halton") {
+          same.i <- round(randtoolbox::halton(ensemble.size) * length(pft.samples[[pft.i]][[1]]))
+        } else if (method == "sobol") {
+          same.i <- round(randtoolbox::sobol(ensemble.size, scrambling = 3) * length(pft.samples[[pft.i]][[1]]))
+        } else if (method == "torus") {
+          same.i <- round(randtoolbox::torus(ensemble.size) * length(pft.samples[[pft.i]][[1]]))
+        } else if (method == "lhc") {
+          same.i <- round(c(PEcAn.emulator::lhc(t(matrix(0:1, ncol = 1, nrow = 2)), ensemble.size) * length(pft.samples[[pft.i]][[1]])))
+        } else if (method == "uniform") {
+          same.i <- sample.int(length(pft.samples[[pft.i]][[1]]), ensemble.size)
+        } else {
+          PEcAn.logger::logger.info("Method ", method, " has not been implemented yet, using uniform random sampling")
+          # uniform random
+          same.i <- sample.int(length(pft.samples[[pft.i]][[1]]), ensemble.size)
         }
-        same.i <- sample.int(length(pft.samples[[pft.i]][[1]]), ensemble.size)
+        
       }
       
       for (trait.i in seq(pft.samples[[pft.i]])) {
@@ -223,8 +233,8 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
       PEcAn.logger::logger.warn("We were not able to successfully establish a connection with Bety ")
     }
   }
-
-
+  
+  
   
   # Get the workflow id
   if (!is.null(settings$workflow$id)) {
@@ -292,7 +302,7 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
         if (is.null(samples[[r_tag]]) & r_tag!="parameters") samples[[r_tag]]$samples <<- rep(settings$run$inputs[[tolower(r_tag)]]$path[1], settings$ensemble$size)
       })
     
-
+    
     # Let's find the PFT based on site location, if it was found I will subset the ensemble.samples otherwise we're not affecting anything    
     if(!is.null(con)){
       Pft_Site_df <- dplyr::tbl(con, "sites_cultivars")%>%
@@ -307,7 +317,7 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
       #-- if there is enough info to connect the site to pft
       #if ( nrow(Pft_Site_df) > 0 & all(site_pfts_names %in% names(ensemble.samples)) ) ensemble.samples <- ensemble.samples [Pft_Site$name %>% unlist() %>% as.character()]
     }
-
+    
     # Reading the site.pft specific tags from xml
     site.pfts.vec <- settings$run$site$site.pft %>% unlist %>% as.character
     
@@ -368,9 +378,9 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
         }
         
       } else {
-
+        
         run.id <- PEcAn.utils::get.run.id("ENS", PEcAn.utils::left.pad.zeros(i, 5), site.id=settings$run$site$id)
-
+        
       }
       runs[i, "id"] <- run.id
       
@@ -407,7 +417,7 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
           settings$run$inputs[[input_tag]][["path"]] <-
             samples[[input_tag]][["samples"]][[i]]
       }
-
+      
       
       do.call(my.write.config, args = list( defaults = defaults, 
                                             trait.values = lapply(samples$parameters$samples, function(x, n) { x[n, , drop=FALSE] }, n=i), # this is the params
@@ -416,7 +426,7 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
       )
       )
       cat(format(run.id, scientific = FALSE), file = file.path(settings$rundir, "runs.txt"), sep = "\n", append = TRUE)
-
+      
     }
     return(invisible(list(runs = runs, ensemble.id = ensemble.id, samples=samples)))
     #------------------------------------------------- if we already have everything ------------------        
@@ -485,7 +495,7 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
 #' \dontrun{input.ens.gen(settings,"met","sampling")}
 #'
 input.ens.gen <- function(settings, input, method = "sampling", parent_ids = NULL) {
-
+  
   #-- reading the dots and exposing them to the inside of the function
   samples <- list()
   samples$ids <- c()
@@ -493,7 +503,7 @@ input.ens.gen <- function(settings, input, method = "sampling", parent_ids = NUL
   if (is.null(method)) return(NULL)
   # parameter is exceptional it needs to be handled spearatly
   if (input == "parameters") return(NULL)
-
+  
   #-- assing the sample ids based on different scenarios
   input_path <- settings$run$inputs[[tolower(input)]]$path
   if (!is.null(parent_ids)) {
@@ -516,6 +526,6 @@ input.ens.gen <- function(settings, input, method = "sampling", parent_ids = NUL
   }
   #using the sample ids
   samples$samples <- input_path[samples$ids]
-
+  
   return(samples)
 }

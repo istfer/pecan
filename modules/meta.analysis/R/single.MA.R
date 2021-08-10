@@ -38,6 +38,9 @@ single.MA <- function(data, j.chains, j.iter, tauA, tauB, prior, jag.model.file,
                       site = length(unique(data$site)),
                       trt = length(unique(data$trt)))
 
+  # making sure
+  data$trt <- as.factor(data$trt)
+  
   # define regression model
   reg.parms <- list(ghs = "beta.ghs[ghs[k]]", # beta.o will be included by default
                     site = "beta.site[site[k]]",

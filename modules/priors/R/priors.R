@@ -30,23 +30,23 @@ fit.dist <- function(trait.data, trait = colnames(trait.data),
     print(trait)
     if (trait == "tt") {
       a[["f"]] <- suppressWarnings(MASS::fitdistr(trait.data, "f", 
-                                            start = list(df1 = 100, df2 = 200)))
+                                                  start = list(df1 = 100, df2 = 200)))
     } else if (trait == "sla") {
       a[["f"]] <- suppressWarnings(MASS::fitdistr(trait.data, "f", 
-                                            start = list(df1 = 6, df2 = 1)))
+                                                  start = list(df1 = 6, df2 = 1)))
     } else if (trait == "rrr") {
       a[["f"]] <- suppressWarnings(MASS::fitdistr(trait.data, "f", 
-                                            start = list(df1 = 6, df2 = 1)))
+                                                  start = list(df1 = 6, df2 = 1)))
     } else if (trait == "q") {
       a[["f"]] <- suppressWarnings(MASS::fitdistr(trait.data, "f", 
-                                            start = list(df1 = 1, df2 = 2)))
+                                                  start = list(df1 = 1, df2 = 2)))
     } else {
       PEcAn.logger::logger.severe(paste(trait, "not supported!"))
     }
   }
   if ("beta" %in% dists) {
     a[["beta"]] <- suppressWarnings(MASS::fitdistr(trait.data, "beta", 
-                                             start = list(shape1 = 2, shape2 = 1)))
+                                                   start = list(shape1 = 2, shape2 = 1)))
   }
   aicvalues <- lapply(a, AIC)
   result <- t(sapply(dists, function(x) cbind(t(tabnum(a[[x]]$estimate)), signif(aicvalues[[x]]))))
@@ -189,7 +189,16 @@ pr.samp <- function(distn, parama, paramb, n) {
 ##' @return vector with n random samples from prior
 ##' @seealso \link{pr.samp}
 ##' @export
-get.sample <- function(prior, n) {
+get.sample <- function(prior, n, p = NULL) {
+  if(!is.null(p)){
+    if (as.character(prior$distn) %in% c("exp", "pois", "geom")) {
+      ## one parameter distributions
+      return(do.call(paste0("q", prior$distn), list(p, prior$parama)))
+    } else {
+      ## two parameter distributions
+      return(do.call(paste0("q", prior$distn), list(p, prior$parama, prior$paramb)))
+    }
+  }
   if (as.character(prior$distn) %in% c("exp", "pois", "geom")) {
     ## one parameter distributions
     return(do.call(paste0("r", prior$distn), list(n, prior$parama)))
