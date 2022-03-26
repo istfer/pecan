@@ -105,22 +105,24 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
           #this should always be the case, but just in case
           origin_dt <- (as.POSIXct(unlist(strsplit(nc$dim$time$units, " "))[3], "%Y-%m-%d", tz="UTC") + 60*60*24) - dt
           ydays <- lubridate::yday(origin_dt + sec)
-
+          
         }else{
           PEcAn.logger::logger.error("Check units of time in the weather data.")
         }
 
+        these_mydays <- ydays %in% simdays
+        these_mydays[lubridate::year(origin_dt + sec) != year] <- FALSE
         
         rad <- ncdf4::ncvar_get(nc, "surface_downwelling_shortwave_flux_in_air")
         gr  <- rad *  0.0864 # W m-2 to MJ m-2 d-1
         # temporary hack, not sure if it will generalize with other data products
         # function might need a splitting arg
-        gr  <- gr[ydays %in% simdays] 
+        gr  <- gr[these_mydays] 
         
         matrix_weather[ ,3]  <- round(tapply(gr, ind, mean, na.rm = TRUE), digits = 2) # irradiation (MJ m-2 d-1)
         
         Tair   <- ncdf4::ncvar_get(nc, "air_temperature")  ## in Kelvin
-        Tair   <- Tair[ydays %in% simdays]
+        Tair   <- Tair[these_mydays]
         Tair_C <- udunits2::ud.convert(Tair, "K", "degC")
         
         
@@ -132,7 +134,7 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
         matrix_weather[ ,5] <- t_dmax # that's what they had in read_weather_Bioforsk
         
         RH <- ncdf4::ncvar_get(nc, "relative_humidity")  # %
-        RH <- RH[ydays %in% simdays]
+        RH <- RH[these_mydays]
         RH <- round(tapply(RH, ind, mean, na.rm = TRUE), digits = 2) 
      
         # This is vapor pressure according to BASGRA.f90#L86 and environment.f90#L49
@@ -140,19 +142,19 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
         
         # TODO: check these
         Rain  <- ncdf4::ncvar_get(nc, "precipitation_flux") # kg m-2 s-1
-        Rain  <- Rain[ydays %in% simdays]
+        Rain  <- Rain[these_mydays]
         raini <- tapply(Rain*86400, ind, mean, na.rm = TRUE) 
         matrix_weather[ ,7] <- round(raini, digits = 2) # precipitation (mm d-1)	
         
         U <- try(ncdf4::ncvar_get(nc, "eastward_wind"))
         V <- try(ncdf4::ncvar_get(nc, "northward_wind"))
         if(is.numeric(U) & is.numeric(V)){
-          U  <- U[ydays %in% simdays]
-          V  <- V[ydays %in% simdays]
+          U  <- U[these_mydays]
+          V  <- V[these_mydays]
           ws <- sqrt(U ^ 2 + V ^ 2)      
         }else{
           ws <- try(ncdf4::ncvar_get(nc, "wind_speed"))
-          ws <- ws[ydays %in% simdays]
+          ws <- ws[these_mydays]
           if (is.numeric(ws)) {
             PEcAn.logger::logger.info("eastward_wind and northward_wind absent; using wind_speed")
           }else{
@@ -166,7 +168,7 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
         # CO2
         co2 <- try(ncdf4::ncvar_get(nc, "mole_fraction_of_carbon_dioxide_in_air"))
         if(is.numeric(co2)){
-          co2 <- co2[ydays %in% simdays] / 1e-06 # ppm
+          co2 <- co2[these_mydays] / 1e-06 # ppm
           co2 <- round(tapply(co2, ind, mean, na.rm = TRUE), digits = 2) 
         }else{
           co2 <- NA
@@ -427,6 +429,15 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
     soilm <- output[thisyear, which(outputNames == "WAL")] # mm
     outlist[[length(outlist)+1]]  <- udunits2::ud.convert(soilm, "mm", "m") * 1000 # (kg m-3) density of water in soil
     
+    # WCL = WAL*0.001 / (ROOTD-Fdepth) Water concentration in non-frozen soil
+    # need to think about ice! but the sensors maybe don't measure that
+    ROOTD  <- output[thisyear, which(outputNames == "ROOTD")] 
+    Fdepth <- output[thisyear, which(outputNames == "Fdepth")] 
+    outlist[[length(outlist)+1]]  <- soilm * 0.001 / (ROOTD - Fdepth)
+    
+    # DM digestibility
+    outlist[[length(outlist)+1]]  <- output[thisyear, which(outputNames == "F_DIGEST_DM")]
+    
     # ******************** Declare netCDF dimensions and variables ********************#
     t <- ncdf4::ncdim_def(name = "time", 
                           units = paste0("days since ", y, "-01-01 00:00:00"), 
@@ -474,6 +485,10 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
     nc_var[[length(nc_var)+1]]  <- PEcAn.utils::to_ncvar("Qle", dims)
     nc_var[[length(nc_var)+1]]  <- ncdf4::ncvar_def("SoilMoist", units = "kg m-2", dim = dims, missval = -999,
                                       longname = "Average Layer Soil Moisture")
+    nc_var[[length(nc_var)+1]]  <- ncdf4::ncvar_def("SoilMoistFrac", units = "m3 m-3", dim = dims, missval = -999,
+                                                    longname = "Average Layer Fraction of Saturation")
+    nc_var[[length(nc_var)+1]]  <- ncdf4::ncvar_def("DM_digestibility", units = "g g-1", dim = dims, missval = -999,
+                                                    longname = "Digestibility")
     
     # ******************** Declare netCDF variables ********************#
     

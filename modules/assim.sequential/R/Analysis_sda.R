@@ -84,7 +84,7 @@ EnKF<-function(setting, Forecast, Observed, H, extraArg=NULL, ...){
   }
   
   ## Kalman Gain
-  K <- Pf %*% t(H) %*% solve((R + H %*% Pf %*% t(H)))
+  K <- Pf %*% t(H) %*% solve((R + H %*% Pf %*% t(H)), tol=1e-22)
   # Analysis
   mu.a <- mu.f + K %*% (Y - H %*% mu.f)
   Pa   <- (diag(ncol(X)) - K %*% H) %*% Pf

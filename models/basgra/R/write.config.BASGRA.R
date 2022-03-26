@@ -323,6 +323,10 @@ write.config.BASGRA <- function(defaults, trait.values, settings, run.id, IC = N
       run_params[names(run_params) == "PHENI"] <-  IC$phenological_stage
     }
     
+    if ("SoilMoistFrac"  %in% ic.names) {
+      run_params[names(run_params) == "WCI"] <-  IC$SoilMoistFrac
+    }
+    
 
   }else if(!is.null(settings$run$inputs$poolinitcond$path)){
     
@@ -528,8 +532,10 @@ write.config.BASGRA <- function(defaults, trait.values, settings, run.id, IC = N
     
     run_params[names(run_params) == "NMIN0"] <- last_vals[names(last_vals) == "NMIN"]
     
-    run_params[names(run_params) == "WALI"]        <- last_vals[names(last_vals) == "WAL"] 
-    run_params[names(run_params) == "WCI"]  <- last_vals[names(last_vals) == "WAL"] / (1000 * last_vals[names(last_vals) == "ROOTD"])
+    #run_params[names(run_params) == "WALI"]        <- last_vals[names(last_vals) == "WAL"] 
+    #run_params[names(run_params) == "WCI"]  <- last_vals[names(last_vals) == "WAL"] / (1000 * last_vals[names(last_vals) == "ROOTD"])
+    run_params[names(run_params) == "WALI"]  <- 1000. * last_vals[names(last_vals) == "ROOTD"] * run_params[names(run_params) == "WCI"]
+    
     run_params[names(run_params) == "O2I"]         <- last_vals[names(last_vals) == "O2"]
     
   }
