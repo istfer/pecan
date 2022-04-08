@@ -275,7 +275,7 @@ write.config.BASGRA <- function(defaults, trait.values, settings, run.id, IC = N
     }
     
     # deriving the last ratio
-    run_params[names(run_params) == "CNSOMF0"] <- last_vals[names(last_vals) == "CSOMF"] / last_vals[names(last_vals) == "NSOMF"]
+    #run_params[names(run_params) == "CNSOMF0"] <- last_vals[names(last_vals) == "CSOMF"] / last_vals[names(last_vals) == "NSOMF"]
     if ("fast_soil_pool_carbon_content"  %in% ic.names) {
       run_params[names(run_params) == "CSOMF0"] <- udunits2::ud.convert(IC$fast_soil_pool_carbon_content, "kg", "g")
     }else{
@@ -284,7 +284,7 @@ write.config.BASGRA <- function(defaults, trait.values, settings, run.id, IC = N
     run_params[names(run_params) == "NSOMF0"]  <- run_params[names(run_params) == "CSOMF0"] / run_params[names(run_params) == "CNSOMF0"]
     
     
-    run_params[names(run_params) == "CNSOMS0"] <- last_vals[names(last_vals) == "CSOMS"] / last_vals[names(last_vals) == "NSOMS"]
+    #run_params[names(run_params) == "CNSOMS0"] <- last_vals[names(last_vals) == "CSOMS"] / last_vals[names(last_vals) == "NSOMS"]
     if ("slow_soil_pool_carbon_content"  %in% ic.names) {
       run_params[names(run_params) == "CSOMS0"] <- udunits2::ud.convert(IC$slow_soil_pool_carbon_content, "kg", "g")
     }else{
@@ -299,7 +299,7 @@ write.config.BASGRA <- function(defaults, trait.values, settings, run.id, IC = N
     }
     
     #NLITT      = CLITT0 / CNLITT0
-    run_params[names(run_params) == "CNLITT0"] <- last_vals[names(last_vals) == "CLITT"] / last_vals[names(last_vals) == "NLITT"]
+    #run_params[names(run_params) == "CNLITT0"] <- last_vals[names(last_vals) == "CLITT"] / last_vals[names(last_vals) == "NLITT"]
      
     if ("litter_carbon_content"  %in% ic.names) {
       run_params[names(run_params) == "CLITT0"] <- udunits2::ud.convert(IC$litter_carbon_content, "kg", "g")
@@ -322,7 +322,7 @@ write.config.BASGRA <- function(defaults, trait.values, settings, run.id, IC = N
     }
     
     # NRT        = NCR * CRTI
-    run_params[names(run_params) == "NCR"] <- last_vals[names(last_vals) == "NRT"] / last_vals[names(last_vals) == "CRT"]
+    #run_params[names(run_params) == "NCR"] <- last_vals[names(last_vals) == "NRT"] / last_vals[names(last_vals) == "CRT"] 
     if ("root_carbon_content"  %in% ic.names) {
       run_params[names(run_params) == "LOG10CRTI"] <-  udunits2::ud.convert(IC$root_carbon_content, "kg", "g")
     }else{
