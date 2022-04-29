@@ -39,7 +39,7 @@ integer                   :: day, doy, i, NDAYS, NOUT, year
 real                      :: y(NDAYS,NOUT)
 
 ! State variables plants
-real    :: CLV, CLVD, CRES, CRT, CST, CSTUB, LAI, LT50, PHEN
+real    :: CLV, CLVD, CRES, CRT, CST, CSTUB, LAI, LT50, PHEN, NPP
 real    :: ROOTD, TILG1, TILG2, TILV
 integer :: VERN
 real    :: YIELD, YIELD_POT, YIELD_LAST, YIELD_TOT
@@ -268,8 +268,9 @@ do day = 1, NDAYS
   WAS     = WAS  - THAWS  + FREEZEL
   WETSTOR = WETSTOR + Wremain - WETSTOR
   
-
-    !================
+  NPP = GLV + GRES - RESMOB + GRT + GST + GSTUB
+  
+  !================
   ! Outputs
   !================
   y(day, 1) = year + (doy-0.5)/366 ! "Time" = Decimal year (approximation)
@@ -388,6 +389,7 @@ do day = 1, NDAYS
   y(day,102) = DAYL
   y(day,103) = EVAP
   y(day,104) = TRAN
+  y(day,105) = NPP
 
 enddo
 
