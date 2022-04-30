@@ -233,7 +233,7 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
     "NSOURCE"    , "NSINK"            ,                                    # 96:97
     "NRT"        , "NCRT"             ,                                    # 98:99
     "rNLITT"     , "rNSOMF"           ,                                    # 100:101
-    "DAYL"       , "EVAP"             , "TRAN"                             # 102:104
+    "DAYL"       , "EVAP"             , "TRAN"        , "NPP"              # 102:105
   )
   
   outputUnits <- c(
@@ -262,7 +262,7 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
     "(g N m-2 d-1)", "(g N m-2 d-1)",                                                # 96:97
     "(g N m-2)"    , "(g N g-1 C)"  ,                                                # 98:99
     "(g N m-2)"    , "(g N g-1 C)"  ,                                                # 100:101
-    "(d d-1)"      , "(mm d-1)"     , "(mm d-1)"                                     # 102:104
+    "(d d-1)"      , "(mm d-1)"     , "(mm d-1)"      ,  "(g C m-2 d-1)"             # 102:105
   )
   
   NOUT <- as.integer( length(outputNames) )
@@ -413,12 +413,15 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
     # NOTE: According to BASGRA_N documentation: LUEMXQ (used in PHOT calculation) accounts for carbon lost to maintenance respiration, 
     # but not growth respiration. So, photosynthesis rate is gross photosynthesis minus maintenance respiration
     # So this is not really GPP, but it wasn't obvious to add what to get GPP, but I just want NEE for now, so it's OK
-    phot          <- output[thisyear, which(outputNames == "PHOT")] # (g C m-2 d-1)
-    nee           <- -1.0 * (phot - (rsoil + rplantaer))
+    #phot          <- output[thisyear, which(outputNames == "PHOT")] # (g C m-2 d-1)
+    #nee           <- -1.0 * (phot - (rsoil + rplantaer))
+    npp           <- output[thisyear, which(outputNames == "NPP")] # (g C m-2 d-1)
+    nee           <- -1.0 * (npp - rsoil)
     outlist[[length(outlist)+1]]  <- udunits2::ud.convert(nee, "g m-2", "kg m-2") / sec_in_day
     
     # again this is not technically GPP
-    outlist[[length(outlist)+1]]  <- udunits2::ud.convert(phot, "g m-2", "kg m-2") / sec_in_day
+    # move to NPP
+    outlist[[length(outlist)+1]]  <- udunits2::ud.convert(npp, "g m-2", "kg m-2") / sec_in_day
     
     # Qle W/m2
     outlist[[length(outlist)+1]]  <- ( output[thisyear, which(outputNames == "EVAP")] + output[thisyear, which(outputNames == "TRAN")] * 
@@ -481,7 +484,7 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
     nc_var[[length(nc_var)+1]]  <- PEcAn.utils::to_ncvar("SoilResp", dims)
     nc_var[[length(nc_var)+1]]  <- PEcAn.utils::to_ncvar("AutoResp", dims)
     nc_var[[length(nc_var)+1]]  <- PEcAn.utils::to_ncvar("NEE", dims)
-    nc_var[[length(nc_var)+1]]  <- PEcAn.utils::to_ncvar("GPP", dims)
+    nc_var[[length(nc_var)+1]]  <- PEcAn.utils::to_ncvar("NPP", dims)
     nc_var[[length(nc_var)+1]]  <- PEcAn.utils::to_ncvar("Qle", dims)
     nc_var[[length(nc_var)+1]]  <- ncdf4::ncvar_def("SoilMoist", units = "kg m-2", dim = dims, missval = -999,
                                       longname = "Average Layer Soil Moisture")
