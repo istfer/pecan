@@ -268,7 +268,7 @@ do day = 1, NDAYS
   WAS     = WAS  - THAWS  + FREEZEL
   WETSTOR = WETSTOR + Wremain - WETSTOR
   
-  NPP = GLV + GRES - RESMOB + GRT + GST + GSTUB
+  NPP = GLV + GRES - RESMOB + GRT + GST 
   
   !================
   ! Outputs
