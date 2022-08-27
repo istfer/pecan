@@ -249,11 +249,6 @@ write.config.BASGRA <- function(defaults, trait.values, settings, run.id, IC = N
       run_params[which(names(run_params) == "HAGERE")] <- pft.traits[which(pft.names == "etil_resv_harv")]
     }
     
-    # Temperature that kills half the plants in a day
-    if ("LT50" %in% pft.names) {
-      run_params[which(names(run_params) == "LT50I")] <- pft.traits[which(pft.names == "LT50")]
-    }
-    
     # Hardening parameter
     if ("hardening_parameter" %in% pft.names) {
       run_params[which(names(run_params) == "Hparam")] <- pft.traits[which(pft.names == "hardening_parameter")]
