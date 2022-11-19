@@ -10,6 +10,7 @@ get.ensemble.samples(
   env.samples,
   method = "uniform",
   param.names = NULL,
+  sobolSA = FALSE,
   ...
 )
 }

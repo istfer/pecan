@@ -16,6 +16,8 @@ runModule.run.write.configs <- function(settings, overwrite = TRUE) {
     write <- settings$database$bety$write
     # double check making sure we have method for parameter sampling
     if (is.null(settings$ensemble$samplingspace$parameters$method)) settings$ensemble$samplingspace$parameters$method <- "uniform"
+    # if sobolSA is requested make sute parameters are also sobol samples
+    if (!is.null(settings$ensemble$sobolSA)) settings$ensemble$samplingspace$parameters$method <- "sobol"
     ens.sample.method <-  settings$ensemble$samplingspace$parameters$method
     
    

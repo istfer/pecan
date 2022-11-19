@@ -16,7 +16,7 @@
 ##' @export
 ##' @author David LeBauer, Shawn Serbin, Ryan Kelly
 run.ensemble.analysis <- function(settings, plot.timeseries = NA, ensemble.id = NULL, 
-                                  variable = NULL, start.year = NULL, end.year = NULL, ...) {
+                                  variable = NULL, start.year = NULL, end.year = NULL, sobolSA = NULL, ...) {
   
   # Set variable and years. Use args first, then settings, then defaults/error
   if (is.null(ensemble.id)) {
@@ -55,6 +55,10 @@ run.ensemble.analysis <- function(settings, plot.timeseries = NA, ensemble.id = 
   }
   if (is.null(variable)) {
     PEcAn.logger::logger.severe("No variables for ensemble analysis!")
+  }
+  if (is.null(sobolSA)) {
+    sobolSA <- settings$ensemble$sobolSA
+    sobolSA <- ifelse(is.null(sobolSA), FALSE, TRUE)
   }
 
   variables <- variable
@@ -144,7 +148,11 @@ run.ensemble.analysis <- function(settings, plot.timeseries = NA, ensemble.id = 
                                    end.year = end.year)
         save(ensemble.ts.analysis, file = fname)
       }
-    }
+      
+      ### Cluster-based sobol GSA
+      if(sobolSA) cluster_based_sobolSA(settings, ensemble.id, variable, start.year, end.year) 
+      
+    } # end of loop over variables
   }
 } # run.ensemble.analysis
 

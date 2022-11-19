@@ -79,7 +79,7 @@ read.ensemble.output <- function(ensemble.size, pecandir, outdir, start.year, en
 ##' @export
 ##' @author David LeBauer, Istem Fer
 get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples, 
-                                 method = "uniform", param.names = NULL, ...) {
+                                 method = "uniform", param.names = NULL, sobolSA = FALSE,...) {
   
   if (is.null(method)) {
     PEcAn.logger::logger.info("No sampling method supplied, defaulting to uniform random sampling")
@@ -103,7 +103,7 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
     total.sample.num <- sum(sapply(pft.samples, length))
     random.samples <- NULL
     
-    
+    gsa <- NULL
     if (method == "halton") {
       PEcAn.logger::logger.info("Using ", method, "method for sampling")
       random.samples <- randtoolbox::halton(n = ensemble.size, dim = total.sample.num, ...)
@@ -111,9 +111,20 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
       random.samples <- as.matrix(random.samples)
     } else if (method == "sobol") {
       PEcAn.logger::logger.info("Using ", method, "method for sampling")
-      random.samples <- randtoolbox::sobol(n = ensemble.size, dim = total.sample.num, scrambling = 3, ...)
-      ## force as a matrix in case length(samples)=1
-      random.samples <- as.matrix(random.samples)
+      if(sobolSA){
+        X1 <- randtoolbox::sobol(n = ensemble.size, dim = total.sample.num, scrambling = 3, ...)
+        X2 <- randtoolbox::sobol(n = ensemble.size, dim = total.sample.num, ...)
+        
+        gsa <- sensitivity::soboljansen(model = NULL, X1, X2,  nboot=100, conf = 0.95)
+        random.samples <- as.matrix(gsa$X)
+        ensemble.size <- nrow(random.samples)
+        PEcAn.logger::logger.info("Total cost of evaluations are now (p + 2) * n = ", ensemble.size)
+      }else{
+        random.samples <- randtoolbox::sobol(n = ensemble.size, dim = total.sample.num, ...)
+        ## force as a matrix in case length(samples)=1
+        random.samples <- as.matrix(random.samples)
+      }
+      
     } else if (method == "torus") {
       PEcAn.logger::logger.info("Using ", method, "method for sampling")
       random.samples <- randtoolbox::torus(n = ensemble.size, dim = total.sample.num, ...)
@@ -178,6 +189,7 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
     }  #end pft
     names(ensemble.samples) <- names(pft.samples)
     ans <- ensemble.samples
+    ans$sobolSA <- gsa
   }
   return(ans)
 } # get.ensemble.samples
@@ -209,7 +221,14 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
 ##' @export
 ##' @author David LeBauer, Carl Davidson, Hamze Dokoohaki
 write.ensemble.configs <- function(defaults, ensemble.samples, settings, model, 
-                                   clean = FALSE, write.to.db = TRUE,restart=NULL) {
+                                   clean = FALSE, write.to.db = TRUE, restart=NULL) {
+  
+  # list of class "soboljansen" for parameters if sobolSA is requested, NULL if nothing
+  sobolSA <- ensemble.samples$sobolSA
+  if(!is.null(sobolSA)){
+    settings$ensemble$size <- nrow(sobolSA$X)
+    ensemble.samples$sobolSA <- NULL
+  }
   
   con <- NULL
   my.write.config <- paste("write.config.", model, sep = "")
@@ -261,77 +280,11 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
     } else {
       ensemble.id <- NA
     }
-    #-------------------------generating met/param/soil/veg/... for all ensembles----
-    if (!is.null(con)){
-      #-- lets first find out what tags are required for this model
-      required_tags <- dplyr::tbl(con, 'models') %>%
-        dplyr::filter(.data$id == !!as.numeric(settings$model$id)) %>%
-        dplyr::inner_join(dplyr::tbl(con, "modeltypes_formats"), by = c('modeltype_id')) %>%
-        dplyr::collect() %>%
-        dplyr::filter(.data$required == TRUE) %>%
-        dplyr::pull("tag")
-      
-    }else{
-      required_tags<-c("met","parameters")
-      
-    }
+
+    ####### new implementation : testing
+    samples <- ensemble_states(settings, ensemble.samples, con)
+    #######
     
-    #now looking into the xml
-    samp <- settings$ensemble$samplingspace
-    #finding who has a parent
-    parents <- lapply(samp,'[[', 'parent')
-    #order parents based on the need of who has to be first
-    order <- names(samp)[lapply(parents, function(tr) which(names(samp) %in% tr)) %>% unlist()] 
-    #new ordered sampling space
-    samp.ordered <- samp[c(order, names(samp)[!(names(samp) %in% order)])]
-    #performing the sampling
-    samples<-list()
-    # For the tags specified in the xml I do the sampling
-    for(i in seq_along(samp.ordered)){
-      myparent<-samp.ordered[[i]]$parent # do I have a parent ?
-      #call the function responsible for generating the ensemble
-      samples[[names(samp.ordered[i])]] <- input.ens.gen(settings=settings,
-                                                         input=names(samp.ordered)[i],
-                                                         method=samp.ordered[[i]]$method,
-                                                         parent_ids=if( !is.null(myparent)) samples[[myparent]] # if I have parent then give me their ids - this is where the ordering matters making sure the parent is done before it's asked
-      )
-    }
-    
-    # if there is a tag required by the model but it is not specified in the xml then I replicate n times the first element 
-    required_tags%>%
-      purrr::walk(function(r_tag){
-        if (is.null(samples[[r_tag]]) & r_tag!="parameters") samples[[r_tag]]$samples <<- rep(settings$run$inputs[[tolower(r_tag)]]$path[1], settings$ensemble$size)
-      })
-    
-    # Reading the site.pft specific tags from xml
-    site.pfts.vec <- settings$run$site$site.pft %>% unlist %>% as.character
-    
-    if (!is.null(site.pfts.vec)) {
-      # find the name of pfts defined in the body of pecan.xml
-      defined.pfts <-
-        settings$pfts %>% purrr::map('name') %>% unlist %>% as.character
-      # subset ensemble samples based on the pfts that are specified in the site and they are also sampled from.
-      if (length(which(site.pfts.vec %in% defined.pfts)) > 0)
-        ensemble.samples <-
-          ensemble.samples [site.pfts.vec[which(site.pfts.vec %in% defined.pfts)]]
-      # warn if there is a pft specified in the site but it's not defined in the pecan xml.
-      if (length(which(!(site.pfts.vec %in% defined.pfts))) > 0)
-        PEcAn.logger::logger.warn(
-          paste0(
-            "The following pfts are specified for the siteid ",
-            settings$run$site$id ,
-            " but they are not defined as a pft in pecan.xml:",
-            site.pfts.vec[which(!(site.pfts.vec %in% defined.pfts))],
-            collapse = ","
-          )
-        )
-    }
-    
-    # if no ensemble piece was in the xml I replicate n times the first element in params
-    if ( is.null(samp$parameters) )            samples$parameters$samples <- ensemble.samples %>% purrr::map(~.x[rep(1, settings$ensemble$size) , ])
-    # This where we handle the parameters - ensemble.samples is already generated in run.write.config and it's sent to this function as arg - 
-    if ( is.null(samples$parameters$samples) ) samples$parameters$samples <- ensemble.samples
-    #------------------------End of generating ensembles-----------------------------------
     # find all inputs that have an id
     inputs <- names(settings$run$inputs)
     inputs <- inputs[grepl(".id$", inputs)]
@@ -413,7 +366,9 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
       cat(format(run.id, scientific = FALSE), file = file.path(settings$rundir, "runs.txt"), sep = "\n", append = TRUE)
 
     }
-    return(invisible(list(runs = runs, ensemble.id = ensemble.id, samples=samples)))
+    
+    
+    return(invisible(list(runs = runs, ensemble.id = ensemble.id, samples = samples, sobolSA = sobolSA)))
     #------------------------------------------------- if we already have everything ------------------        
   }else{
     #reading retstart inputs
@@ -470,6 +425,98 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
   
 } # write.ensemble.configs
 
+#' Function for preparing and writing ensemble states
+#' 
+#'
+#' @param settings list of PEcAn settings
+#' @param ensemble.samples list of lists supplied by \link{get.ensemble.samples}
+#' @param con DB connection
+#'
+#' @return samples
+#' 
+#' @export
+#'
+#' @examples
+#' \dontrun{ensemble_states(settings, con)}
+#'
+ensemble_states <- function(settings, ensemble.samples, con){
+  
+  #-------------------------generating met/param/soil/veg/... for all ensembles----
+  if (!is.null(con)){
+    #-- lets first find out what tags are required for this model
+    required_tags <- dplyr::tbl(con, 'models') %>%
+      dplyr::filter(.data$id == !!as.numeric(settings$model$id)) %>%
+      dplyr::inner_join(dplyr::tbl(con, "modeltypes_formats"), by = c('modeltype_id')) %>%
+      dplyr::collect() %>%
+      dplyr::filter(.data$required == TRUE) %>%
+      dplyr::pull("tag")
+    
+  }else{
+    required_tags<-c("met","parameters")
+    
+  }
+  
+  #now looking into the xml
+  samp <- settings$ensemble$samplingspace
+  #finding who has a parent
+  parents <- lapply(samp,'[[', 'parent')
+  #order parents based on the need of who has to be first
+  order <- names(samp)[lapply(parents, function(tr) which(names(samp) %in% tr)) %>% unlist()] 
+  #new ordered sampling space
+  samp.ordered <- samp[c(order, names(samp)[!(names(samp) %in% order)])]
+  #performing the sampling
+  samples<-list()
+  # For the tags specified in the xml I do the sampling
+  for(i in seq_along(samp.ordered)){
+    myparent<-samp.ordered[[i]]$parent # do I have a parent ?
+    #call the function responsible for generating the ensemble
+    samples[[names(samp.ordered[i])]] <- input.ens.gen(settings=settings,
+                                                       input=names(samp.ordered)[i],
+                                                       method=samp.ordered[[i]]$method,
+                                                       parent_ids=if( !is.null(myparent)) samples[[myparent]] # if I have parent then give me their ids - this is where the ordering matters making sure the parent is done before it's asked
+    )
+  }
+  
+  # if there is a tag required by the model but it is not specified in the xml then I replicate n times the first element 
+  required_tags%>%
+    purrr::walk(function(r_tag){
+      if (is.null(samples[[r_tag]]) & r_tag!="parameters") samples[[r_tag]]$samples <<- rep(settings$run$inputs[[tolower(r_tag)]]$path[1], settings$ensemble$size)
+    })
+  
+  # Reading the site.pft specific tags from xml
+  site.pfts.vec <- settings$run$site$site.pft %>% unlist %>% as.character
+  
+  if (!is.null(site.pfts.vec)) {
+    # find the name of pfts defined in the body of pecan.xml
+    defined.pfts <-
+      settings$pfts %>% purrr::map('name') %>% unlist %>% as.character
+    # subset ensemble samples based on the pfts that are specified in the site and they are also sampled from.
+    if (length(which(site.pfts.vec %in% defined.pfts)) > 0)
+      ensemble.samples <-
+        ensemble.samples [site.pfts.vec[which(site.pfts.vec %in% defined.pfts)]]
+    # warn if there is a pft specified in the site but it's not defined in the pecan xml.
+    if (length(which(!(site.pfts.vec %in% defined.pfts))) > 0)
+      PEcAn.logger::logger.warn(
+        paste0(
+          "The following pfts are specified for the siteid ",
+          settings$run$site$id ,
+          " but they are not defined as a pft in pecan.xml:",
+          site.pfts.vec[which(!(site.pfts.vec %in% defined.pfts))],
+          collapse = ","
+        )
+      )
+  }
+  
+  # if no ensemble piece was in the xml I replicate n times the first element in params
+  if ( is.null(samp$parameters) )            samples$parameters$samples <- ensemble.samples %>% purrr::map(~.x[rep(1, settings$ensemble$size) , ])
+  # This where we handle the parameters - ensemble.samples is already generated in run.write.config and it's sent to this function as arg - 
+  if ( is.null(samples$parameters$samples) ) samples$parameters$samples <- ensemble.samples
+  #------------------------End of generating ensembles-----------------------------------
+  
+  return(samples)
+}
+
+
 
 
 #' Function for generating samples based on sampling method, parent or etc
@@ -491,11 +538,11 @@ input.ens.gen <- function(settings, input, method = "sampling", parent_ids = NUL
   #-- reading the dots and exposing them to the inside of the function
   samples <- list()
   samples$ids <- c()
-  #
+  
   if (is.null(method)) return(NULL)
-  # parameter is exceptional it needs to be handled spearatly
+  # parameter is exceptional it needs to be handled separately
   if (input == "parameters") return(NULL)
-
+  
   #-- assing the sample ids based on different scenarios
   input_path <- settings$run$inputs[[tolower(input)]]$path
   if (!is.null(parent_ids)) {

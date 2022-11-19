@@ -11,6 +11,7 @@ run.ensemble.analysis(
   variable = NULL,
   start.year = NULL,
   end.year = NULL,
+  sobolSA = NULL,
   ...
 )
 }

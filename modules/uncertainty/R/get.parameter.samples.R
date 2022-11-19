@@ -53,7 +53,10 @@ get.parameter.samples <- function(settings,
   ## Load PFT priors and posteriors
   for (i in seq_along(pft.names)) {
     
-    rm(prior.distns, post.distns, trait.mcmc)
+    # this is a line that ensures no lingering probability distributions are present in the environment
+    # but it often throws warnings in a completely normal workflow, confusing new users, that's why suppressing the warnings
+    suppressWarnings(rm(prior.distns, post.distns, trait.mcmc)) 
+    
     ## Load posteriors
     if (!is.na(posterior.files[i])) {
       # Load specified file
@@ -188,9 +191,10 @@ get.parameter.samples <- function(settings,
       if (is.null(settings$ensemble$size)) settings$ensemble$size<-1
     } else if (settings$ensemble$size > 1) {
       
+      sobolSA <- ifelse(is.null(settings$ensemble$sobolSA), FALSE, TRUE)
       ## subset the trait.samples to ensemble size using Halton sequence
       ensemble.samples <- get.ensemble.samples(settings$ensemble$size, trait.samples, 
-                                               env.samples, ens.sample.method, param.names)
+                                               env.samples, ens.sample.method, param.names, sobolSA)
     }
   }
   
