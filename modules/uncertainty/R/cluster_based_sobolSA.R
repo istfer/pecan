@@ -39,7 +39,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   curves <- ensemble.ts[[variable]]
     
   
-  # Curves clustering
+  ### Clustering
   
   # the number of clusters, should be passed via settings
   if (is.null(settings$ensemble$sobolSA$nbClust)) {
@@ -65,7 +65,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   
   PEcAn.logger::logger.info("Detecting", nbClust, "clusters in the simulated outputs over", np, "discretized points. Please wait.")
   
-  subcurves <- curves[,seq(1,tp, length.out = np)]
+  subcurves <- curves[,seq(1,tp, length.out = np)] # can take sum / mean over?
   m <- 2 # fuzziness parameter
   clust <- fclust::FKM(subcurves,k=nbClust,m=m,conv=1e-3, maxit=50)
   u <- clust$U # Membership functions
@@ -90,6 +90,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
     for (i in nci) lines(seq(0,1,length.out=np),subcurves[i,],lwd=2,col= adjustcolor(col_base[cl], alpha.f = u[i,cl]^2))
     lines(seq(0,1,length.out=np),centers[cl,],lty=1,lwd=4,ylim=c(0,1),col='red')
     grid(col='black')
+    mtext(paste0(nc, " sample curves plotted."))
   }
   
   dev.off()
@@ -99,32 +100,41 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   cluster$centers <- centers
   save(cluster, file = rdtname)
   
+  
+  
+  #### Compute sensitivity indices
+  
+  pdfname <- paste0(dirname(fname), "/cluster-basedGSA.", ensemble.id, ".", variable, ".", start.year, ".", end.year, ".pdf")
+  rdtname <- paste0(dirname(fname), "/cluster-basedGSA.", ensemble.id, ".", variable, ".", start.year, ".", end.year, ".Rdata")
+  
+  pdf(pdfname, width = 12, height = 9)
+  
   load(paste0(sub("ts.*", "", fname), "samples.", ensemble.id, ".Rdata"))
   
   # Sensitivity indices on membership functions
   Clust_SI <- vector("list",nbClust)
-  paramNames <- names(ens.samples[[1]])
+  paramNames <- unlist(sapply(which(!names(ens.samples) %in% c("env", "sobolSA")), function(x) names(ens.samples[[x]])))
   nbParam <- length(paramNames)
   colnames(sobolSA$X1) <- colnames(sobolSA$X2) <- colnames(sobolSA$X) <- paramNames
   for (cl in 1:nbClust) {
     Clust_SI[[cl]] <- sensitivity::tell(sobolSA, y=u[,cl])
-    # plot_indices(Si1=Clust_SI[[cl]]$S[,1], ST=Clust_SI[[cl]]$T[,1], 
-    #              lowCI_Si1=Clust_SI[[cl]]$S[,4], upCI_Si1=Clust_SI[[cl]]$S[,5], 
-    #              lowCI_ST=Clust_SI[[cl]]$T[,4], upCI_ST=Clust_SI[[cl]]$T[,5], 
-    #              graph_title=paste0("Cluster",cl), paramNames, nbParam)
+    plot_indices(Si1=Clust_SI[[cl]]$S[,1], ST=Clust_SI[[cl]]$T[,1], 
+                  lowCI_Si1=Clust_SI[[cl]]$S[,4], upCI_Si1=Clust_SI[[cl]]$S[,5], 
+                  lowCI_ST=Clust_SI[[cl]]$T[,4], upCI_ST=Clust_SI[[cl]]$T[,5], 
+                  graph_title=paste0("Parameters leading to cluster",cl), paramNames, nbParam)
   }
   
   # Sensitivity  indices on the difference between two membership functions 
-  # comb <- combn(nbClust,2) # computes the different combinations of 2 clusters among nbClust
-  # nbComb <- ncol(comb)
-  # for (icomb in 1:nbComb) {
-  #   dClust_SI <- sensitivity::tell(sobolSA, y=u[,comb[1,icomb]]-u[,comb[2,icomb]])
-  #   plot_indices(Si1=dClust_SI$S[,1], ST=dClust_SI$T[,1], 
-  #                lowCI_Si1=dClust_SI$S[,4], upCI_Si1=dClust_SI$S[,5], 
-  #                lowCI_ST=dClust_SI$T[,4], upCI_ST=dClust_SI$T[,5], 
-  #                graph_title=paste0("Direction ",comb[1,icomb],"-",comb[2,icomb]),
-  #                paramNames, nbParam)
-  # }
+  comb <- combn(nbClust,2) # computes the different combinations of 2 clusters among nbClust
+  nbComb <- ncol(comb)
+  for (icomb in 1:nbComb) {
+    dClust_SI <- sensitivity::tell(sobolSA, y=u[,comb[1,icomb]]-u[,comb[2,icomb]])
+    plot_indices(Si1=dClust_SI$S[,1], ST=dClust_SI$T[,1],
+                 lowCI_Si1=dClust_SI$S[,4], upCI_Si1=dClust_SI$S[,5],
+                 lowCI_ST=dClust_SI$T[,4], upCI_ST=dClust_SI$T[,5],
+                 graph_title=paste0("Parameters influencing changes along a direction between ",comb[1,icomb],"-",comb[2,icomb]),
+                 paramNames, nbParam)
+  }
   
   
   # Compute Clust-GSI
@@ -132,7 +142,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
                            sapply(Clust_SI, function(x) x$S[,1]), 
                            sapply(Clust_SI, function(x) x$T[,1]), paramNames, nbParam)
   # Compute confidence intervals on Clust-GSI
-  nboot=100
+  nboot=100 # could be passed via fcn args
   clust_GSI_boot <- vector("list",nboot)
   X1 <- sobolSA$X1
   X2 <- sobolSA$X2
@@ -163,10 +173,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
     
   }
   
-  pdfname <- paste0(dirname(fname), "/cluster-basedGSA.", ensemble.id, ".", variable, ".", start.year, ".", end.year, ".pdf")
-  rdtname <- paste0(dirname(fname), "/cluster-basedGSA.", ensemble.id, ".", variable, ".", start.year, ".", end.year, ".Rdata")
-  
-  pdf(pdfname, width = 12, height = 9)
+
   
   plot_indices(Si1=clust_GSI$Si1, ST=clust_GSI$ST, 
                lowCI_Si1=clust_GSI$Si1_CI95pcMin, upCI_Si1=clust_GSI$Si1_CI95pcMax, 
@@ -175,7 +182,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   
   dev.off()
   
-  save(clust_GSI, file = rdtname)
+  save(clust_GSI, dClust_SI, file = rdtname)
   
 } 
 
