@@ -30,6 +30,7 @@ Description: The Predictive Ecosystem Carbon Analyzer
 Depends:
 Imports:
     dplyr,
+    fclust,
     ggmap,
     ggplot2,
     gridExtra,
@@ -42,7 +43,8 @@ Imports:
     plyr (>= 1.8.4),
     purrr,
     randtoolbox,
-    rlang
+    rlang,
+    sensitivity
 Suggests:
     testthat (>= 1.0.2),
 License: BSD_3_clause + file LICENSE

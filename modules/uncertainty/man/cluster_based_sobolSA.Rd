@@ -13,9 +13,9 @@ cluster_based_sobolSA(
 )
 }
 \value{
-list
+nothing, creates cluster-based GSA plots
 }
 \description{
-Performs cluster-based GSA based on Roux et al 2021
+Performs cluster-based GSA based on Roux & Buis et al 2021
 function uses code from https://github.com/sbuis/ClusterBased_GSA/blob/master/clusterBasedGSA_on_Toycurve.Rmd
 }
