@@ -101,21 +101,39 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   save(cluster, file = rdtname)
   
   
-  
   #### Compute sensitivity indices
+  
+  PEcAn.logger::logger.info("Cluster centers are detected, now computing the cluster-based GSA. Please wait.")
   
   pdfname <- paste0(dirname(fname), "/cluster-basedGSA.", ensemble.id, ".", variable, ".", start.year, ".", end.year, ".pdf")
   rdtname <- paste0(dirname(fname), "/cluster-basedGSA.", ensemble.id, ".", variable, ".", start.year, ".", end.year, ".Rdata")
   
-  pdf(pdfname, width = 12, height = 9)
-  
+  # load parameters
+  ensemble_samples_file <- paste0(sub("ts.*", "", fname), "samples.", ensemble.id, ".Rdata")
   load(paste0(sub("ts.*", "", fname), "samples.", ensemble.id, ".Rdata"))
+  ens.samples$env <- NULL
+  all_params <- do.call("cbind", ens.samples)
+  
+  ic_samples_file <- sub("ensemble", "initial_condition", ensemble_samples_file)
+  if(file.exists(ic_samples_file)){
+    load(ic_samples_file)
+    all_params <- cbind(all_params, ics_ordered)
+  } 
+  paramNames <- colnames(all_params)
+  nbParam <- length(paramNames)
+  
+  # reconstruct soboljensen object
+  N <- nrow(all_params) / (nbParam+2)
+  X1 <- all_params[1:N,]
+  X2 <- all_params[(N+1):(N+N),]
+  sobolSA <- sensitivity::soboljansen(model = NULL, X1, X2,  nboot=100, conf = 0.95)
+  colnames(sobolSA$X1) <- colnames(sobolSA$X2) <- colnames(sobolSA$X) <- paramNames
+  #note that is should be identical(sobolSA$X, all_params)
+  
+  pdf(pdfname, width = 12, height = 9)
   
   # Sensitivity indices on membership functions
   Clust_SI <- vector("list",nbClust)
-  paramNames <- unlist(sapply(which(!names(ens.samples) %in% c("env", "sobolSA")), function(x) names(ens.samples[[x]])))
-  nbParam <- length(paramNames)
-  colnames(sobolSA$X1) <- colnames(sobolSA$X2) <- colnames(sobolSA$X) <- paramNames
   for (cl in 1:nbClust) {
     Clust_SI[[cl]] <- sensitivity::tell(sobolSA, y=u[,cl])
     plot_indices(Si1=Clust_SI[[cl]]$S[,1], ST=Clust_SI[[cl]]$T[,1], 
@@ -146,9 +164,9 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   clust_GSI_boot <- vector("list",nboot)
   X1 <- sobolSA$X1
   X2 <- sobolSA$X2
-  n <- nrow(curves) / (nbParam + 2)  # nrow(curves) = (n * (p+2))
+
   for (iboot in 1:nboot){
-    bt_idx <- sample(n,size=n,replace=TRUE) # resample in X1 and X2 matrices
+    bt_idx <- sample(N,size=N,replace=TRUE) # resample in X1 and X2 matrices
     
     gsa_boot <- sensitivity::soboljansen(model = NULL, X1= X1[bt_idx,], X2 = X2[bt_idx,], nboot=0)
     idx_in_orig_DoE <- match(data.frame(t(gsa_boot$X)), data.frame(t(sobolSA$X))) # identify the lines of the bootstrapped DoE, gsa_boot$X, in the original DoE, gsa$X, to reuse the simulated curves

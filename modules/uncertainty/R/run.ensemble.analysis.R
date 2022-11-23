@@ -57,8 +57,7 @@ run.ensemble.analysis <- function(settings, plot.timeseries = NA, ensemble.id = 
     PEcAn.logger::logger.severe("No variables for ensemble analysis!")
   }
   if (is.null(sobolSA)) {
-    sobolSA <- settings$ensemble$sobolSA
-    sobolSA <- ifelse(is.null(sobolSA), FALSE, TRUE)
+    sobolSA <- ifelse(is.null(settings$ensemble$sobolSA), FALSE, TRUE)
   }
 
   variables <- variable

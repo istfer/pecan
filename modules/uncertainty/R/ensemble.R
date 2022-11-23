@@ -103,7 +103,6 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
     total.sample.num <- sum(sapply(pft.samples, length))
     random.samples <- NULL
     
-    gsa <- NULL
     if (method == "halton") {
       PEcAn.logger::logger.info("Using ", method, "method for sampling")
       random.samples <- randtoolbox::halton(n = ensemble.size, dim = total.sample.num, ...)
@@ -118,7 +117,7 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
         gsa <- sensitivity::soboljansen(model = NULL, X1, X2,  nboot=100, conf = 0.95)
         random.samples <- as.matrix(gsa$X)
         ensemble.size <- nrow(random.samples)
-        PEcAn.logger::logger.info("Total cost of evaluations are now (p + 2) * n = ", ensemble.size)
+        PEcAn.logger::logger.info("Sobol SA on parameters requested. Total cost of evaluations are now (p + 2) * n = ", ensemble.size)
       }else{
         random.samples <- randtoolbox::sobol(n = ensemble.size, dim = total.sample.num, ...)
         ## force as a matrix in case length(samples)=1
@@ -189,7 +188,6 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
     }  #end pft
     names(ensemble.samples) <- names(pft.samples)
     ans <- ensemble.samples
-    ans$sobolSA <- gsa
   }
   return(ans)
 } # get.ensemble.samples
@@ -222,13 +220,6 @@ get.ensemble.samples <- function(ensemble.size, pft.samples, env.samples,
 ##' @author David LeBauer, Carl Davidson, Hamze Dokoohaki
 write.ensemble.configs <- function(defaults, ensemble.samples, settings, model, 
                                    clean = FALSE, write.to.db = TRUE, restart=NULL) {
-  
-  # list of class "soboljansen" for parameters if sobolSA is requested, NULL if nothing
-  sobolSA <- ensemble.samples$sobolSA
-  if(!is.null(sobolSA)){
-    settings$ensemble$size <- nrow(sobolSA$X)
-    ensemble.samples$sobolSA <- NULL
-  }
   
   con <- NULL
   my.write.config <- paste("write.config.", model, sep = "")
@@ -282,7 +273,8 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
     }
 
     ####### new implementation : testing
-    samples <- ensemble_states(settings, ensemble.samples, con)
+    samples <- ensemble_states(settings, ensemble.samples, con, ensemble.id)
+    settings$ensemble$size <- ifelse(!is.null(settings$ensemble$sobolSA$sizeSA), settings$ensemble$sobolSA$sizeSA, settings$ensemble$size)
     #######
     
     # find all inputs that have an id
@@ -368,7 +360,7 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
     }
     
     
-    return(invisible(list(runs = runs, ensemble.id = ensemble.id, samples = samples, sobolSA = sobolSA)))
+    return(invisible(list(runs = runs, ensemble.id = ensemble.id, samples = samples)))
     #------------------------------------------------- if we already have everything ------------------        
   }else{
     #reading retstart inputs
@@ -439,7 +431,7 @@ write.ensemble.configs <- function(defaults, ensemble.samples, settings, model,
 #' @examples
 #' \dontrun{ensemble_states(settings, con)}
 #'
-ensemble_states <- function(settings, ensemble.samples, con){
+ensemble_states <- function(settings, ensemble.samples, con, ensemble.id){
   
   #-------------------------generating met/param/soil/veg/... for all ensembles----
   if (!is.null(con)){
@@ -464,8 +456,22 @@ ensemble_states <- function(settings, ensemble.samples, con){
   order <- names(samp)[lapply(parents, function(tr) which(names(samp) %in% tr)) %>% unlist()] 
   #new ordered sampling space
   samp.ordered <- samp[c(order, names(samp)[!(names(samp) %in% order)])]
+  
+  # this may be buggy
+  # if sobolSA is requested final ensemble size is different N*(p+ic+2) 
+  # [p: number of parameters, ic: number of initial condition variables]
+  if(!is.null(settings$ensemble$sobolSA)){
+    ens.size <- as.numeric(settings$ensemble$size)
+    settings$ensemble$size <- as.numeric(settings$ensemble$sobolSA$sizeSA) # making these changes for the input.ens.gen function
+    settings$ensemble$ensemble.id <- ensemble.id
+    # move parameters to the last
+    params_sublist <- samp.ordered$parameters
+    samp.ordered$parameters <- NULL
+    samp.ordered$parameters <- params_sublist
+  }
+  
   #performing the sampling
-  samples<-list()
+  samples <- list()
   # For the tags specified in the xml I do the sampling
   for(i in seq_along(samp.ordered)){
     myparent<-samp.ordered[[i]]$parent # do I have a parent ?
@@ -540,8 +546,16 @@ input.ens.gen <- function(settings, input, method = "sampling", parent_ids = NUL
   samples$ids <- c()
   
   if (is.null(method)) return(NULL)
-  # parameter is exceptional it needs to be handled separately
-  if (input == "parameters") return(NULL)
+  # parameter is exceptional it needs to be handled separately, except sobol rows will be added below if requested
+  if (input == "parameters"){
+    if(!is.null(settings$ensemble$sobolSA)){
+      load(file.path(settings$outdir, "samples.Rdata"))
+      samples$samples <- ensemble.samples
+      return(samples)
+    }else{
+      return(NULL)
+    }
+  } 
   
   #-- assing the sample ids based on different scenarios
   input_path <- settings$run$inputs[[tolower(input)]]$path
@@ -563,6 +577,66 @@ input.ens.gen <- function(settings, input, method = "sampling", parent_ids = NUL
       seq_along(input_path),
       length.out = settings$ensemble$size)
   }
+  
+  # this is probably not the best design
+  if(input == "poolinitcond"){ # could be same for soilinitcond
+    
+    # read and save IC even without the sobolSA part
+    ic_mat <- sapply(seq_along(input_path), function(x){
+      nc <- ncdf4::nc_open(input_path[[x]])
+      ic_vals <- sapply(names(nc$var), function(y) ncdf4::ncvar_get(nc, y))
+      ncdf4::nc_close(nc)
+      return(ic_vals)
+    })
+    
+    if(!is.null(settings$ensemble$sobolSA)){
+      # IC X1 and X2
+      N_ic  <- ncol(ic_mat) / (nrow(ic_mat)+2)
+      X1_ic <- t(ic_mat)[1:N_ic,]
+      X2_ic <- t(ic_mat)[(N_ic+1):(N_ic+N_ic),]
+      
+      load(file.path(settings$outdir, "samples.Rdata"))
+      
+      X1X2X <- do.call("cbind", ensemble.samples)
+      N_p <- nrow(X1X2X) / (ncol(X1X2X)+2)
+      X1_p <- X1X2X[1:N_p,]
+      X2_p <- X1X2X[(N_p+1):(N_p+N_p),]
+      
+      X1 <- cbind(X1_p, X1_ic)
+      X2 <- cbind(X2_p, X2_ic)
+      
+      gsa <- sensitivity::soboljansen(model = NULL, X1, X2,  nboot=100, conf = 0.95)
+      random.samples <- as.matrix(gsa$X)
+      ensemble.size <- nrow(random.samples)
+      PEcAn.logger::logger.info("Sobol SA on initial conditions requested. Total cost of evaluations are now (p + 2) * n = ", ensemble.size)
+      
+      # overwrite and save ensemble samples
+      used <- 0
+      ens_samp_names <- names(ensemble.samples)
+      for(samp.i in ens_samp_names[ens_samp_names != "env"]){
+        npar <- ncol(ensemble.samples[[samp.i]])
+        sampcol_names <- colnames(ensemble.samples[[samp.i]])
+        ensemble.samples[[samp.i]] <- as.data.frame(random.samples[,(used+1):(used+npar)])
+        colnames(ensemble.samples[[samp.i]]) <- sampcol_names
+        used <- used + npar
+      }
+
+      #like in get.parameter.samples.R
+      save(ensemble.samples, trait.samples, sa.samples, runs.samples, env.samples, 
+           file = file.path(settings$outdir, "samples.Rdata"))
+      
+      # order IC files
+      samples$ids <-  sapply(seq_len(settings$ensemble$size), function(y){
+        which(apply(t(ic_mat), 1, function(x) identical(x[1:nrow(ic_mat)], random.samples[y,(ncol(random.samples)-nrow(ic_mat)+1):ncol(random.samples)])))
+      })
+    }# end sobol-if
+
+    # save IC
+    fname <- PEcAn.uncertainty::ensemble.filename(settings, "initial_condition.samples", "Rdata")
+    ics_ordered <- t(ic_mat)[samples$ids,]
+    save(ics_ordered, file = fname)
+  }
+  
   #using the sample ids
   samples$samples <- input_path[samples$ids]
 

@@ -129,13 +129,11 @@ run.write.configs <- function(settings, write = TRUE, ens.sample.method = "unifo
     # Store output in settings and output variables
     runs.samples$ensemble <- ens.run.ids <- ens.runs$runs
     settings$ensemble$ensemble.id <- ens.ensemble.id <- ens.runs$ensemble.id
-    ens.samples <- ensemble.samples  # rename just for consistency
-    sobolSA <- ens.runs$sobolSA
-    if(!is.null(sobolSA)) settings$ensemble$size <- nrow(sobolSA$X) # update settings
+    ens.samples <- ensemble.samples <- ens.runs$samples$parameters$samples  # rename just for consistency
 
     # Save ensemble analysis info
     fname <- PEcAn.uncertainty::ensemble.filename(settings, "ensemble.samples", "Rdata", all.var.yr = TRUE)
-    save(ens.run.ids, ens.ensemble.id, ens.samples, pft.names, trait.names, sobolSA, file = fname)
+    save(ens.run.ids, ens.ensemble.id, ens.samples, pft.names, trait.names, file = fname)
   } else {
     PEcAn.logger::logger.info("not writing config files for ensemble, settings are NULL")
   }  ### End of Ensemble
