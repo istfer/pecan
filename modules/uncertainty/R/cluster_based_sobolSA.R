@@ -37,7 +37,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
     load(fname)
   }
   curves <- ensemble.ts[[variable]]
-    
+  
   
   ### Clustering
   
@@ -70,7 +70,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   clust <- fclust::FKM(subcurves,k=nbClust,m=m,conv=1e-3, maxit=50)
   u <- clust$U # Membership functions
   
-
+  
   centers <- data.frame(matrix(nrow=nbClust,ncol=np)) # clusters' centers
   for (k in 1:nbClust) centers[k,] <-  apply(subcurves*(u[,k]^m),2,sum) / sum(u[,k]^m)
   
@@ -78,19 +78,20 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   rdtname <- paste0(sub("ts.*", "", fname), "cluster-centers.", ensemble.id, ".", variable, ".", start.year, ".", end.year ,".Rdata")
   
   pdf(pdfname, width = 12, height = 9)
-
+  
   # plot (a sub-set of) curves for each cluster
   # don't plot all. <100 is fine
   nc <- ifelse(nrow(curves) > 100, 100, nrow(curves)) # number of curves to plot 
-  nci <- sample(1:nrow(curves), nc) 
+  
   gr <- 0.0
   col_base <- rep(gray(gr),nbClust)
   for (cl in 1:nbClust){
     plot(seq(0,1,length.out=np),subcurves[1,],typ='n',xlab='',main=sprintf("Cluster %d",cl), ylim=range(curves))
+    nci <- sample(1:nrow(curves), nc, prob=u[,cl]) 
     for (i in nci) lines(seq(0,1,length.out=np),subcurves[i,],lwd=2,col= adjustcolor(col_base[cl], alpha.f = u[i,cl]^2))
     lines(seq(0,1,length.out=np),centers[cl,],lty=1,lwd=4,ylim=c(0,1),col='red')
     grid(col='black')
-    mtext(paste0(nc, " sample curves plotted."))
+    mtext(paste0(nc, " sample curves plotted from low (light gray) to high (black) membership. Cluster center is in red."))
   }
   
   dev.off()
@@ -137,9 +138,9 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   for (cl in 1:nbClust) {
     Clust_SI[[cl]] <- sensitivity::tell(sobolSA, y=u[,cl])
     plot_indices(Si1=Clust_SI[[cl]]$S[,1], ST=Clust_SI[[cl]]$T[,1], 
-                  lowCI_Si1=Clust_SI[[cl]]$S[,4], upCI_Si1=Clust_SI[[cl]]$S[,5], 
-                  lowCI_ST=Clust_SI[[cl]]$T[,4], upCI_ST=Clust_SI[[cl]]$T[,5], 
-                  graph_title=paste0("Parameters leading to cluster",cl), paramNames, nbParam)
+                 lowCI_Si1=Clust_SI[[cl]]$S[,4], upCI_Si1=Clust_SI[[cl]]$S[,5], 
+                 lowCI_ST=Clust_SI[[cl]]$T[,4], upCI_ST=Clust_SI[[cl]]$T[,5], 
+                 graph_title=paste0("Parameters leading to cluster",cl), paramNames, nbParam)
   }
   
   # Sensitivity  indices on the difference between two membership functions 
@@ -164,7 +165,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
   clust_GSI_boot <- vector("list",nboot)
   X1 <- sobolSA$X1
   X2 <- sobolSA$X2
-
+  
   for (iboot in 1:nboot){
     bt_idx <- sample(N,size=N,replace=TRUE) # resample in X1 and X2 matrices
     
@@ -191,7 +192,7 @@ cluster_based_sobolSA <- function(settings, ensemble.id = NULL, variable = "NPP"
     
   }
   
-
+  
   
   plot_indices(Si1=clust_GSI$Si1, ST=clust_GSI$ST, 
                lowCI_Si1=clust_GSI$Si1_CI95pcMin, upCI_Si1=clust_GSI$Si1_CI95pcMax, 
@@ -213,7 +214,23 @@ plot_indices <- function(Si1, ST, lowCI_Si1, upCI_Si1, lowCI_ST, upCI_ST, graph_
   # lowCI_ST: vector of confidence interval lower bounds for total Sobol' indices for each parameter
   # upCI_ST: vector of confidence interval upper bounds for total Sobol' indices for each parameter
   btmmar <- max(nchar(paramNames))
-  par(mar=c(round(btmmar/2),4,2,2)) # adjust as needed
+  par(mar=c(round(btmmar/2.5),4,2,2)) # adjust as needed
+  
+  # if there are too many params fig gets too crowded
+  # then only plot the top 50-ish
+  if(nbParam > 50){
+    int <- intersect(order(ST, decreasing = TRUE)[1:50], order(Si1, decreasing = TRUE)[1:50])
+  }else{
+    int <- order(ST, decreasing = TRUE)
+  }
+  ST         <- ST[int]
+  Si1        <- Si1[int]
+  lowCI_Si1  <- lowCI_Si1[int]
+  upCI_Si1   <- upCI_Si1[int]
+  lowCI_ST   <- lowCI_ST[int]
+  upCI_ST    <- upCI_ST[int]
+  paramNames <- paramNames[int]
+  nbParam    <- length(int)
   
   b <-  barplot(rbind(ST,Si1), 
                 beside=TRUE, ylim=c(0,1), col=c(gray(0.5),'white'), 
