@@ -77,7 +77,12 @@ run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_
       matrix_weather[ ,1] <- rep(year, NDAYS) # year
       matrix_weather[ ,2] <- simdays
       
-      if(grepl(year, basename(file_path))){
+      dates_in_filename <- gsubfn::strapplyc(basename(file_path), "\\d+-\\d+-\\d+", simplify = TRUE)
+      ycheck <- FALSE
+      if(length(dates_in_filename[[1]]) > 0){
+        ycheck <- dates_in_filename[1,1] < year & dates_in_filename[2,1] > year
+      }
+      if(grepl(year, basename(file_path)) | ycheck){
         # we probably have a (near-term) forecast met
         old.file <- file_path
       }else{
