@@ -28,7 +28,7 @@
 
 run_BASGRA <- function(run_met, run_params, site_harvest, site_fertilize, start_date, end_date, outdir, 
                        sitelat, sitelon, co2_file = NULL){
-  
+  print("the correct branch")
   start_date  <- as.POSIXlt(start_date, tz = "UTC")
   if(lubridate::hour(start_date) == 23){ 
     # could be made more sophisticated but if it is specified to the hour this is probably coming from SDA
