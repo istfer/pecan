@@ -528,10 +528,28 @@ write.config.BASGRA <- function(defaults, trait.values, settings, run.id, IC = N
     
     run_params[names(run_params) == "WALI"]  <- 1000. * run_params[names(run_params) == "ROOTDM"] * run_params[names(run_params) == "WCI"]
     
-    # Tiller density (m-2)
-    tiltoti <- try(ncdf4::ncvar_get(IC.nc, "tiller_density"), silent = TRUE)
-    if (!is.na(tiltoti) && is.numeric(tiltoti)) {
-      run_params[which(names(run_params) == "TILTOTI")] <- tiltoti
+    # # Tiller density (m-2)
+    # tiltoti <- try(ncdf4::ncvar_get(IC.nc, "tiller_density"), silent = TRUE)
+    # if (!is.na(tiltoti) && is.numeric(tiltoti)) {
+    #   run_params[which(names(run_params) == "TILTOTI")] <- tiltoti
+    # }
+    
+    # Non-elongating generative tiller density (m-2)
+    tilg1ic <- try(ncdf4::ncvar_get(IC.nc, "nonelongating_generative_tiller_density"), silent = TRUE)
+    if (!is.na(tilg1ic) && is.numeric(tilg1ic)) {
+      run_params[which(names(run_params) == "TILG1I")] <- tilg1ic
+    }
+    
+    # Elongating generative tiller density (m-2)
+    tilg2ic <- try(ncdf4::ncvar_get(IC.nc, "elongating_generative_tiller_density"), silent = TRUE)
+    if (!is.na(tilg2ic) && is.numeric(tilg2ic)) {
+      run_params[which(names(run_params) == "TILG2I")] <- tilg2ic
+    }
+    
+    # Vegetative tiller density (m-2)
+    tilvic <- try(ncdf4::ncvar_get(IC.nc, "vegetative_tiller_density"), silent = TRUE)
+    if (!is.na(tilvic) && is.numeric(tilvic)) {
+      run_params[which(names(run_params) == "TILVI")] <- tilvic
     }
     
     # Phenological stage
