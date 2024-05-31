@@ -1758,3 +1758,177 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
 } # write.config.STICS
 
 
+# ==================================================================================================#
+#' Function to translate pecan param names and units to stics names and units.
+#' Where units are the same they are left as NA.
+#' @export
+#' @param trait.values trait.values, list
+#' @return translated list
+#' @author Quentin Bell
+#' Based on pecan2lpjguess function by Istem Fer https://github.com/PecanProject/pecan/blob/develop/models/lpjguess/R/write.config.LPJGUESS.R#L229
+pecan2stics <- function(trait.values){
+  
+  # TODO :match all stics and pecan names
+  vartable <- tibble::tribble(
+    ~pecanname, ~sticsname, ~pecanunits, ~sticsunits, 
+    "abscission", "fracLeafFall",	NA, NA, 
+    "adens", "adens",	NA, NA, 
+    "adil", "adil",	NA, NA, 
+    "ahres", "ahres",	NA, NA, 
+    "akres", "ORdecomp_par",	NA, NA, 
+    "ampfroid",	"vernalization_TAmp",	NA, NA, 
+    "awb", "awb",	NA, NA, 
+    "bdens", "dens_comp",	NA, NA, 
+    "bdil", "bdil",	NA, NA, 
+    "belong", "belong",	NA, NA, 
+    "beta",	"maxTPincrease_waterstress",	NA, NA, 
+    "bhres", "bhres",	NA, NA, 
+    "bkres", "ORdecomp_rate",	NA, NA, 
+    "bwb", "bwb",	NA, NA,
+    "celong", "celong",	NA, NA,
+    "CNresmax", "CNresmax",	NA, NA,
+    "CNresmin", "CNresmin",	NA, NA, 
+    "coefamflax", "coefamflax",	NA, NA, 
+    "coefb", "rad_on_conversion_eff",	NA, NA, 
+    "coefdrpmat", "coefdrpmat",	NA, NA, 
+    "coefflodrp", "coefflodrp",	NA, NA, 
+    "coeflaxsen", "coeflaxsen",	NA, NA, 
+    "coeflevamf", "coeflevamf",	NA, NA, 
+    "coeflevdrp", "coeflevdrp",	NA, NA, 
+    "coefmshaut",	"biomass2usefulheight",	NA, NA, 
+    "coefsenlan", "coefsenlan",	NA, NA, 
+    "contrdamax",	"db_reduc_rgr_max",	NA, NA, 
+    "CroCo", "fOR_decomp",	NA, NA, 
+    "croirac", "croirac",	NA, NA, 
+    "cwb", "minC2N_microbialbiomass", NA, NA, 
+    "dacohes", "bd_rootgrowth_reduced", NA, NA, 
+    "daseuilbas",	"bd_rootgrowth_maximal", NA, NA, 
+    "daseuilhaut", "bd_rootgrowth_impossible", NA, NA, 
+    "debsenrac", "root_sen_dday", NA, NA, 
+    "difN",	"difN_FC", NA, NA, 
+    "diftherm",	"soil_thermal_diffusivity", NA, NA, 
+    "dlaimaxbrut", "lai_max_rate", NA, NA, 
+    "dlaimin", "lai_growth_rate_accelerating", NA, NA, 
+    "draclong", "rootlength_prod_max", NA, NA, 
+    "durvieF", "leaf_lifespan_max", NA, NA, 
+    "durviesupmax",	"relative_addlifespan_DT_excessN", NA, NA, 
+    "efcroijuv", "RUE_juv", NA, NA, 
+    "efcroirepro", "RUE_rep", NA, NA, 
+    "efcroiveg", "RUE_veg", NA, NA, 
+    "elmax", "coleoptile_elong_dark_max", NA, NA, 
+    "extin", "extinction_coefficient_diffuse", NA, NA, 
+    "fhminsat", "fhminsat", NA, NA, 
+    "FINERT", "FINERT", NA, NA, 
+    "FMIN1", "FMIN1", NA, NA, 
+    "FMIN2", "FMIN2", NA, NA, 
+    "FMIN3", "FMIN3", NA, NA, 
+    "fNCbiomin", "fNCbiomin", NA, NA, 
+    "fredkN",	"Nlim_reductionOMdecomp", NA, NA, 
+    "fredlN",	"Nlim_reductionMBdecomp", NA, NA, 
+    "fredNsup", "fredNsu", NA, NA, 
+    "FTEMh", "T_p1_Hdecomp_rate", NA, NA, 
+    "FTEMha",	"T_p2_Hdecomp_rate", NA, NA, 
+    "FTEMr", "FTEMr", NA, NA, 
+    "FTEMra", "FTEMra", NA, NA, 
+    "h2ofeuilverte", "water_content_TLP_leaf", NA, NA, 
+    "hautmax", "HTMAX", NA, NA, 
+    "hminm", "hminm", NA, NA, 
+    "hoptm", "hoptm", NA, NA, 
+    "INNmin", "INNmin", NA, NA, 
+    "innsen", "innsen", NA, NA, 
+    "innturgmin", "innturgmin", NA, NA, 
+    "julvernal", "vernalization_init", NA, NA, 
+    "jvcmini", "vernalization_days_min", NA, NA, 
+    "kbio",	"microbialbiomass_decay", NA, NA, 
+    "khaut", "LAI2height", NA, NA, 
+    "Kmabs1", "Kmabs1", NA, NA, 
+    "kmax",	"crop_water_max", NA, NA, 
+    "laicomp", "lai_comp", NA, NA, 
+    "lvfront", "rootdens_at_apex", NA, NA, 
+    "lvopt", "lvopt", NA, NA, 
+    "masecNmax", "masecNmax", NA, NA, 
+    "maxazorac", "maxazorac", NA, NA, 
+    "minazorac", "minazorac", NA, NA, 
+    "minefnra", "minefnra", NA, NA, 
+    "nlevlim1",	"days_reduced_emergence_postgerm", NA, NA, 
+    "nlevlim2",	"days2stopped_emergence_postgerm", NA, NA, 
+    "Nmeta", "Nmeta", NA, NA, 
+    "Nreserve", "Nreserve", NA, NA, 
+    "parazofmort", "parazofmort", NA, NA, 
+    "pentlaimax", "pentlaimax", NA, NA, 
+    "pHmaxvol", "pHmaxvol", NA, NA, 
+    "pHminvol", "pHminvol", NA, NA, 
+    "phobase", "phobase", NA, NA, 
+    "phosat", "phosat", NA, NA, 
+    "phyllotherme",	"phyllochron", NA, NA, 
+    "plNmin", "plNmin", NA, NA, 
+    "pminruis",	"precmin4runoff", NA, NA, 
+    "Primingmax", "Primingmax", NA, NA,
+    "prophumtassrec",	"SMC_compaction_delay_harvest", NA, NA, 
+    "prophumtasssem",	"SMC_compaction_delay_sow", NA, NA, 
+    "proprac", "root2aerial_harvest", NA, NA, 
+    "psihucc", "SWP_FC", NA, NA, 
+    "psihumin",	"SWP_WP", NA, NA, 
+    "psisto", "psi_stomata_closure", NA, NA, 
+    "psiturg", "leaf_psi_tlp", NA, NA, 
+    "QNpltminINN", "QNpltminINN", NA, NA, 
+    "rapsenturg", "rapsenturg", NA, NA, 
+    "ratiodurvieI",	"early2last_leaflife", NA, NA, 
+    "ratiosen",	"senes2total_biomass", NA, NA, 
+    "rayon", "rayon", NA, NA, 
+    "rdrain", "rdrain", NA, NA, 
+    "remobres", "remobres", NA, NA, 
+    "sensrsec",	"rootsens2drought", NA, NA, 
+    "SLAMAX", "SLAMAX",	"cm2 g-1",	"m2 kg-1", 
+    "SLAMIN", "SLAMIN",	"cm2 g-1",	"m2 kg-1", 
+    "stamflax",	"cum_thermal_growth", NA, NA, 
+    "stlevamf",	"cum_thermal_juvenile", NA, NA, 
+    "stlevdrp",	"cum_thermal_filling", NA, NA, 
+    "stpltger",	"cum_thermal_germin", NA, NA, 
+    "stressdev", "phasic_delay_max", NA, NA, 
+    "swfacmin", "swfacmin", NA, NA, 
+    "tcmax", "tcmax_growth", NA, NA, 
+    "tcmin", "tcmin_growth", NA, NA, 
+    "tcxstop", "tcmax_foliar_growth", NA, NA, 
+    "tdmax", "tcmax_foliar_growth", NA, NA, 
+    "tdmin", "tdmin", NA, NA, 
+    "temax", "temax", NA, NA, 
+    "temin", "temin", NA, NA, 
+    "teopt", "teopt", NA, NA, 
+    "teoptbis", "teoptbis", NA, NA, 
+    "tfroid",	"vernalization_TOpt", NA, NA, 
+    "tgmin", "emergence_Tmin", NA, NA, 
+    "tigefeuil", "stem2leaf", NA, NA, 
+    "tmin_mineralisation", "tmin_mineralisation", NA, NA, 
+    "TREFh", "T_r_HOMdecomp", NA, NA, 
+    "TREFr", "T_r_ORdecomp", NA, NA, 
+    "udlaimax", "udlaimax", NA, NA, 
+    "Vabs2", "Nupt_fertloss_halve", NA, NA, 
+    "vlaimax", "vlaimax", NA, NA, 
+    "Wh", "Wh", NA, NA, 
+    "Xorgmax", "maxNimm_mineralfert", NA, NA, 
+    "y0msrac", "rootmin_harvest", NA, NA, 
+    "yres", "microbialbiomass_C_yield", NA, NA, 
+    )
+  
+  trait.values <- lapply(trait.values, function(x){
+    names(x) <- vartable$sticsname[match(names(x), vartable$pecanname)]
+    return(x)
+  })
+  
+  # TODO : unit conversions?
+  toconvert <- vartable$sticsname[!is.na(vartable$sticsunits)]
+  trait.values <- lapply(trait.values, function(x){
+    canconvert <- toconvert[toconvert %in% names(x)]      
+    if(length(canconvert) != 0){
+      for(c in seq_along(canconvert)){
+        x[,names(x) == canconvert[c]] <- PEcAn.utils::ud_convert(x[,names(x) == canconvert[c]], 
+                                                                 vartable$pecanunits[vartable$sticsname == canconvert[c]], 
+                                                                 vartable$sticsunits[vartable$sticsname == canconvert[c]])
+      }
+    }
+    return(x)
+  })
+  
+  return(trait.values)
+} 
