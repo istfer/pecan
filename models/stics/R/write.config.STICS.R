@@ -195,6 +195,9 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
       next
     }
     
+    # Apply changes to those parameters specified by trait.values for this pft.
+    SticsRFiles::set_param_xml(plant_file, param = names(pft.traits), values = unname(pft.traits), overwrite = TRUE)
+    
     plt_files[[pft]] <- plant_file
     
     # to learn the parameters in a plant file
@@ -211,10 +214,10 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "phasic development")
     # unlist(values)
     
-    # Creating a dataframe of the parameter names and their values for feeding into SticsRFiles::set_param_xml.
-    # Note we need one entry in the dataframe to begin with
+    # Creating a dataframe of parameter names and their values for feeding into SticsRFiles::set_param_xml.
+    # Note that the parameters in the data frame are either hardcoded for now or otherwise require special treatment.
     plt_df <- data.frame(codebfroid = 2) # vernalization requirement, hardcoding for now, 2==yes. 
-    SticsRFiles::set_param_xml(plant_file, param = names(pft.traits), values = unname(pft.traits), overwrite = TRUE)
+    
     # name code of plant in 3 letters
     # a handful of plants have to have specific codes, e.g. forages need to be 'fou' and vine needs to be 'vig'
     # but others can be anything? if not, either consider a LUT or passing via settings
@@ -225,136 +228,19 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
       plt_df$codeplante <- base::substr(names(trait.values)[pft],1,3)
       plt_df$codeperenne <- 1
     }
-    
-    # minimum temperature below which development stops (degree C)
-    if ("tdmin" %in% pft.names) {
-      plt_df$tdmin <- pft.traits[which(pft.names == "tdmin")]
-    }
-    
-    # maximum temperature above which development stops (degree C)
-    if ("tdmax" %in% pft.names) {
-      plt_df$tdmax <- pft.traits[which(pft.names == "tdmax")]
-    }
-    
-    # basal photoperiod
-    if ("phobase" %in% pft.names) {
-      plt_df$phobase <- pft.traits[which(pft.names == "phobase")]
-    }
-    
-    # saturating photoperiod
-    if ("phosat" %in% pft.names) {
-      plt_df$phosat <- pft.traits[which(pft.names == "phosat")]
-    }
-    
-    
-    # maximum phasic delay allowed due to stresses
-    if ("phasic_delay_max" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "stressdev", pft.traits[which(pft.names == "phasic_delay_max")], overwrite = TRUE)
-    }
-    
-    # minimum number of vernalising days (d) [0,7]
-    if ("vernalization_days_min" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "jvcmini", round(pft.traits[which(pft.names == "vernalization_days_min")]), overwrite = TRUE)
-    }
-    
-    # day of initiation of vernalisation in perennial crops (julian d) [1,731]
-    # this only takes effect for perennial crops
-    if ("vernalization_init" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "julvernal", round(pft.traits[which(pft.names == "vernalization_init")]), overwrite = TRUE)
-    }
-    
-    # optimal temperature for vernalisation (degreeC)
-    if ("vernalization_TOpt" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "tfroid", pft.traits[which(pft.names == "vernalization_TOpt")], overwrite = TRUE)
-    }
-    
-    # semi thermal amplitude for vernalising effect (degreeC)
-    if ("vernalization_TAmp" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "ampfroid", pft.traits[which(pft.names == "vernalization_TAmp")], overwrite = TRUE)
-    }
-    
-    if ("coeflevamf" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "coeflevamf", pft.traits[which(pft.names == "coeflevamf")], overwrite = TRUE)
-    }
-    
-    if ("coefamflax" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "coefamflax", pft.traits[which(pft.names == "coefamflax")], overwrite = TRUE)
-    }
-    
-    if ("coeflaxsen" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "coeflaxsen", pft.traits[which(pft.names == "coeflaxsen")], overwrite = TRUE)
-    }
-    
-    if ("coefsenlan" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "coefsenlan", pft.traits[which(pft.names == "coefsenlan")], overwrite = TRUE)
-    }
-    
-    if ("coeflevdrp" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "coeflevdrp", pft.traits[which(pft.names == "coeflevdrp")], overwrite = TRUE)
-    }
-    
-    if ("coefdrpmat" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "coefdrpmat", pft.traits[which(pft.names == "coefdrpmat")], overwrite = TRUE)
-    }
-    
-    if ("coefflodrp" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "coefflodrp", pft.traits[which(pft.names == "coefflodrp")], overwrite = TRUE)
-    }
-    
-    
-    # emergence and starting
-    # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "emergence and starting")
-    # unlist(values)
-    
-    # minimum temperature below which emergence is stopped (degreeC)
-    if ("emergence_Tmin" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "tgmin", pft.traits[which(pft.names == "emergence_Tmin")], overwrite = TRUE)
-    }
-    
+
     # nbfeuilplant, leaf number per plant when planting, default 0, skipping for now
-    
     
     # this is a switch, for now hardcoding to have delay at the beginning of the crop (1)
     # if starting the simulation from a later stage (e.g. lev) this has no effect
     # codegermin, option of simulation of a germination phase or a delay at the beginning of the crop (1) or direct starting (2)
-    SticsRFiles::set_param_xml(plant_file, "codegermin", 1, overwrite = TRUE)
-    
-    # cumulative thermal time allowing germination (degree-d)
-    if ("cum_thermal_germin" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "stpltger", pft.traits[which(pft.names == "cum_thermal_germin")], overwrite = TRUE)
-    }
+    plt_df$codegermin <- 1
     
     # skipping the other parameters related to this switch, they don't seem influential, at least on NPP and LAI
     # potgermi: soil water potential under which seed imbibition is impeded
     # nbjgerlim: maximum number of days after grain imbibition allowing full germination
     # propjgermin: minimal proportion of the duration nbjgerlim when the temperature is higher than the temperature threshold Tdmax
-    
-    
-    # parameter of the curve of coleoptile elongation
-    if ("belong" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "belong", pft.traits[which(pft.names == "belong")], overwrite = TRUE)
-    }
-    
-    # parameter of the plantlet elongation curve
-    if ("celong" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "celong", pft.traits[which(pft.names == "celong")], overwrite = TRUE)
-    }
-    
-    # maximum elongation of the coleoptile in darkness condition
-    if ("coleoptile_elong_dark_max" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "elmax", pft.traits[which(pft.names == "coleoptile_elong_dark_max")], overwrite = TRUE)
-    }
-    
-    # number of days after germination after which plant emergence is reduced
-    if ("days_reduced_emergence_postgerm" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "nlevlim1", round(pft.traits[which(pft.names == "days2reduced_emergence_postgerm")]), overwrite = TRUE)
-    }
-    
-    # number of days after germination after which plant emergence is impossible
-    if ("days2stopped_emergence_postgerm" %in% pft.names) { 
-      SticsRFiles::set_param_xml(plant_file, "nlevlim2", round(pft.traits[which(pft.names == "days2stopped_emergence_postgerm")]), overwrite = TRUE)
-    }
-    
+    # 
     # plant vigor index allowing to emerge through a soil crust, vigueurbat == 1 inactivates some soil crust related parameters, skipping for now
     
     # there are also "planting" related parameters
@@ -363,202 +249,33 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "leaves")
     # unlist(values)
     
-    
-    # phyllotherme, thermal duration between the apparition of two successive leaves on the main stem (degree day)
-    # assuming this is the same as phyllochron
-    if ("phyllochron" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "phyllotherme", pft.traits[which(pft.names == "phyllochron")], overwrite = TRUE)
-    }
-    
-    # minimal density above which interplant competition starts (m-2)
-    if ("dens_comp" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "bdens", pft.traits[which(pft.names == "dens_comp")], overwrite = TRUE)
-    }
-    
-    # LAI above which competition between plants starts (m2 m-2)
-    if ("lai_comp" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "laicomp", pft.traits[which(pft.names == "lai_comp")], overwrite = TRUE)
-    }
-    
-    # basal height of crop (m)
-    if ("height" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "hautbase", pft.traits[which(pft.names == "height")], overwrite = TRUE)
-    }
-    
-    # maximum height of crop
-    if ("HTMAX" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "hautmax", pft.traits[which(pft.names == "HTMAX")], overwrite = TRUE)
-    }
-    
-    # minimum temperature at which growth ceases
-    if ("tcmin_growth" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "tcmin", pft.traits[which(pft.names == "tcmin_growth")], overwrite = TRUE)
-    }
-    
-    # maximum temperature at which growth ceases
-    if ("tcmax_growth" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "tcmax", pft.traits[which(pft.names == "tcmax_growth")], overwrite = TRUE)
-    }
-    
     # temperature beyond which foliar growth stops
-    if ("tcmax_foliar_growth" %in% pft.names) {
+    if ("tcxstop" %in% pft.names | "tdmax" %in% pft.names) {
       #  tcxstop must be > tdmax, priors should be set that way, and we can let the simulation fail afterwards, but putting a warning here
-      tdmax   <- SticsRFiles::get_param_xml(plant_file, param="tdmax", select = "formalisme", select_value = "phasic development")[[1]][[1]]
-      tcxstop <- pft.traits[which(pft.names == "tcmax_foliar_growth")]
+      #  Retrieve the new values if they exist, otherwise read them from the plant file
+      if ("tcxstop" %in% pft.names) {
+        tcxstop <- pft.traits[which(pft.names == "tcxstop")]
+      } else {
+        tcxstop   <- SticsRFiles::get_param_xml(plant_file, param="tcxstop", select = "formalisme", select_value = "leaves")[[1]][[1]]
+      }
+      if ("tdmax" %in% pft.names) {
+        tdmax <- pft.traits[which(pft.names == "tdmax")]
+      } else {
+        tdmax   <- SticsRFiles::get_param_xml(plant_file, param="tdmax", select = "formalisme", select_value = "phasic development")[[1]][[1]]
+      }
       if(tcxstop < tdmax){
         PEcAn.logger::logger.warn("tcmax_foliar_growth value (", tcxstop, ") should be greater than tdmax (", tdmax, ").")
       }
-      SticsRFiles::set_param_xml(plant_file, "tcxstop", tcxstop, overwrite = TRUE)
-      
+      # TODO: Do we force one of these to change or let the simulation fail?
     }
     
-    # ulai at the inflexion point of the function DELTAI=f(ULAI)
-    if ("vlaimax" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "vlaimax", pft.traits[which(pft.names == "vlaimax")], overwrite = TRUE)
-    }
-    
-    # parameter of the logistic curve of LAI growth
-    if ("pentlaimax" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "pentlaimax", pft.traits[which(pft.names == "pentlaimax")], overwrite = TRUE)
-    }
-    
-    # ulai from which the rate of leaf growth decreases
-    if ("udlaimax" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "udlaimax", pft.traits[which(pft.names == "udlaimax")], overwrite = TRUE)
-    }
-    
-    # life span of early leaves expressed as a fraction of the life span of the last leaves emitted DURVIEF
-    if ("early2last_leaflife" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "ratiodurvieI", pft.traits[which(pft.names == "early2last_leaflife")], overwrite = TRUE)
-    }
-    
-    # fraction of senescent biomass (relative to total biomass)
-    if ("senes2total_biomass" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "ratiosen", pft.traits[which(pft.names == "senes2total_biomass")], overwrite = TRUE)
-    }
-    
-    # fraction of senescent leaves falling to the soil
-    # not sure if this is supposed to be a fraction or a percentage in STICS, values look like a fraction but min-max is given as 0-100
-    # treating it like a fraction for now
-    if ("fracLeafFall" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "abscission", pft.traits[which(pft.names == "fracLeafFall")], overwrite = TRUE)
-    }
-    
-    # parameter relating the C/N of dead leaves and the INN
-    if ("parazofmorte" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "parazofmorte", pft.traits[which(pft.names == "parazofmorte")], overwrite = TRUE)
-    }
-    
-    # parameter of the N stress function active on leaf expansion (INNLAI), bilinear function vs INN passing through the point (INNmin, INNturgmin)
-    if ("innturgmin" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "innturgmin", pft.traits[which(pft.names == "innturgmin")], overwrite = TRUE)
-    }
-    
-    # accelerating parameter for the lai growth rate
-    if ("lai_growth_rate_accelerating" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "dlaimin", pft.traits[which(pft.names == "lai_growth_rate_accelerating")], overwrite = TRUE)
-    }
-    
-    # maximum rate of the setting up of LAI
-    if ("lai_max_rate" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "dlaimaxbrut", pft.traits[which(pft.names == "lai_max_rate")], overwrite = TRUE)
-    } 
-    
-    # relative additional lifespan due to N excess in plant (INN > 1)
-    if ("relative_addlifespan_DT_excessN" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "durviesupmax", pft.traits[which(pft.names == "relative_addlifespan_DT_excessN")], overwrite = TRUE)
-    } 
-    
-    # parameter of the N stress function active on senescence (INNsenes), bilinear function vs INN passing through the point (INNmin, INNsen)
-    if ("innsen" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "innsen", pft.traits[which(pft.names == "innsen")], overwrite = TRUE)
-    } 
-    
-    # threshold soil water content active to simulate water senescence stress as a proportion of the turgor stress
-    if ("rapsenturg" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "rapsenturg", pft.traits[which(pft.names == "rapsenturg")], overwrite = TRUE)
-    } 
-    
-    
-    # radiation interception
-    # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "radiation interception")
-    
-    # extinction coefficient of photosynthetic active radiation in the canopy
-    if ("extinction_coefficient_diffuse" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "extin", pft.traits[which(pft.names == "extinction_coefficient_diffuse")], overwrite = TRUE)
-    } 
     
     # shoot biomass growth
     # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "shoot biomass growth")
     
-    # minimum temperature for development
-    if ("temin" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "temin", pft.traits[which(pft.names == "temin")], overwrite = TRUE)
-    }
-    
-    # maximal temperature above which plant growth stops
-    if ("temax" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "temax", pft.traits[which(pft.names == "temax")], overwrite = TRUE)
-    }
-    
-    # optimal temperature (1/2) for plant growth
-    if ("teopt" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "teopt", pft.traits[which(pft.names == "teopt")], overwrite = TRUE)
-    }
-    
-    # optimal temperature (2/2) for plant growth
-    if ("teoptbis" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "teoptbis", pft.traits[which(pft.names == "teoptbis")], overwrite = TRUE)
-    }
-    
-    # maximum radiation use efficiency during the juvenile phase
-    if ("RUE_juv" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "efcroijuv", pft.traits[which(pft.names == "RUE_juv")], overwrite = TRUE)
-    }
-    
-    # maximum radiation use efficiency during the vegetative stage
-    if ("RUE_veg" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "efcroiveg", pft.traits[which(pft.names == "RUE_veg")], overwrite = TRUE)
-    }
-    
-    # maximum radiation use efficiency during the grain filling phase
-    if ("RUE_rep" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "efcroirepro", pft.traits[which(pft.names == "RUE_rep")], overwrite = TRUE)
-    }
-    
-    # fraction of daily remobilisable C reserves
-    if ("remobres" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "remobres", pft.traits[which(pft.names == "remobres")], overwrite = TRUE)
-    }
-    
-    # ratio biomass / useful height cut of crops (t.ha-1.m-1)
-    if ("biomass2usefulheight" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "coefmshaut", pft.traits[which(pft.names == "biomass2usefulheight")], overwrite = TRUE)
-    }
-    
     
     # partitioning of biomass in organs
     # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "partitioning of biomass in organs")
-    
-    # maximum SLA (specific leaf area) of green leaves (cm2 g-1)
-    if ("SLAMAX" %in% pft.names) {
-      slamax <- pft.traits[which(pft.names == "SLAMAX")]
-      slamax <- PEcAn.utils::ud_convert(PEcAn.utils::ud_convert(slamax, "m2", "cm2"), "kg-1", "g-1") # m2 kg-1 to cm2 g-1
-      SticsRFiles::set_param_xml(plant_file, "slamax", slamax, overwrite = TRUE)
-    }
-    
-    # minimum SLA (specific leaf area) of green leaves (cm2 g-1)
-    if ("SLAMIN" %in% pft.names) {
-      slamin <- pft.traits[which(pft.names == "SLAMIN")]
-      slamin <- PEcAn.utils::ud_convert(PEcAn.utils::ud_convert(slamin, "m2", "cm2"), "kg-1", "g-1") # m2 kg-1 to cm2 g-1
-      SticsRFiles::set_param_xml(plant_file, "slamin", slamin, overwrite = TRUE)
-    }
-    
-    
-    # ratio stem (structural part)/leaf
-    if ("stem2leaf" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "tigefeuil", pft.traits[which(pft.names == "stem2leaf")], overwrite = TRUE)
-    }
     
     # skipping: envfruit, fraction of envelop in grainmaxi (w:w)
     # skipping: sea, specific area of fruit envelops
@@ -572,76 +289,14 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # sensanox, index of anoxia sensitivity (0 = insensitive), 0 for now
     # stoprac, stage when root growth stops (LAX= maximum leaf area index, end of leaf growth or SEN=beginning of leaf senescence)
     
-    # sensrsec, index of root sensitivity to drought (1=insensitive)
-    if ("rootsens2drought" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "sensrsec", pft.traits[which(pft.names == "rootsens2drought")], overwrite = TRUE)
-    }
-    
-    # contrdamax, maximal reduction in root growth rate due to soil strengthness (high bulk density)
-    if ("db_reduc_rgr_max" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "contrdamax", pft.traits[which(pft.names == "db_reduc_rgr_max")], overwrite = TRUE)
-    }    
-    
-    # draclong, maximum rate of root length production per plant (cm plant-1 degreeD-1)
-    if ("rootlength_prod_max" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "draclong", pft.traits[which(pft.names == "rootlength_prod_max")], overwrite = TRUE)
-    }   
-    
-    # debsenrac, sum of degrees-days defining the beginning of root senescence (root life time) (degreeD)
-    if ("root_sen_dday" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "debsenrac", round(pft.traits[which(pft.names == "root_sen_dday")]), overwrite = TRUE)
-    }  
-    
-    #lvfront, root density at the root apex (cm cm-3)
-    if ("rootdens_at_apex" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "lvfront", pft.traits[which(pft.names == "rootdens_at_apex")], overwrite = TRUE)
-    }  
-    
-    # longsperac - specific root length (cm g-1)
-    if ("SRL" %in% pft.names) {
-      srl_val  <- PEcAn.utils::ud_convert(pft.traits[which(pft.names == "SRL")], "m", "cm")
-      SticsRFiles::set_param_xml(plant_file, "longsperac", srl_val, overwrite = TRUE)
-    }
-    
+
     # option to activate the N influence on root partitioning within the soil profile (1 = yes, 2 = no)
-    SticsRFiles::set_param_xml(plant_file, "codazorac", 1, overwrite = TRUE)
+    plt_df$codazorac <- 1
     
-    # reduction factor on root growth when soil mineral N is limiting (< minazorac)
-    if ("minefnra" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "minefnra", pft.traits[which(pft.names == "minefnra")], overwrite = TRUE)
-    }  
-    
-    # mineral N concentration in soil below which root growth is reduced (kg.ha-1.cm-1)
-    if ("minazorac" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "minazorac", pft.traits[which(pft.names == "minazorac")], overwrite = TRUE)
-    }  
-    
-    # mineral N concentration in soil above which root growth is maximum (kg.ha-1.cm-1)
-    if ("maxazorac" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "maxazorac", pft.traits[which(pft.names == "maxazorac")], overwrite = TRUE)
-    }  
-    
+
     # frost
     
     # formalism - water
-    
-    # psisto, potential of stomatal closing (absolute value) (bars)
-    # note: units in betyDB are m, but my prior is for testing 
-    if ("psi_stomata_closure" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "psisto", pft.traits[which(pft.names == "psi_stomata_closure")], overwrite = TRUE)
-    }  
-    
-    # psiturg, potential of the beginning of decrease of the cellular extension (absolute value) (bars)
-    # may or may not be leaf_psi_tlp in betyDB
-    if ("leaf_psi_tlp" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "psiturg", pft.traits[which(pft.names == "leaf_psi_tlp")], overwrite = TRUE)
-    }  
-    
-    # h2ofeuilverte, water content of green leaves (relative to fresh matter) (g g-1)
-    # may or may not be water_content_TLP_leaf in betyDB
-    if ("water_content_TLP_leaf" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "h2ofeuilverte", pft.traits[which(pft.names == "water_content_TLP_leaf")], overwrite = TRUE)
-    }  
     
     # skipping:
     # h2ofeuiljaune
@@ -651,47 +306,6 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # deshydbase
     # tempdeshyd
     
-    # kmax, maximum crop coefficient for water requirements (=MET/PET)
-    if ("crop_water_max" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "kmax", pft.traits[which(pft.names == "crop_water_max")], overwrite = TRUE)
-    } 
-    
-    # nitrogen
-    # masecNmax
-    if ("masecNmax" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "masecNmax", pft.traits[which(pft.names == "masecNmax")], overwrite = TRUE)
-    } 
-    
-    # Nreserve
-    if ("Nreserve" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "Nreserve", pft.traits[which(pft.names == "Nreserve")], overwrite = TRUE)
-    } 
-    
-    
-    # Kmabs1
-    if ("Kmabs1" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "Kmabs1", pft.traits[which(pft.names == "Kmabs1")], overwrite = TRUE)
-    } 
-    
-    # adil
-    if ("adil" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "adil", pft.traits[which(pft.names == "adil")], overwrite = TRUE)
-    } 
-    
-    # bdil
-    if ("bdil" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "bdil", pft.traits[which(pft.names == "bdil")], overwrite = TRUE)
-    } 
-    
-    # INNmin
-    if ("INNmin" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "INNmin", pft.traits[which(pft.names == "INNmin")], overwrite = TRUE)
-    } 
-    
-    # Nmeta
-    if ("Nmeta" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "Nmeta", pft.traits[which(pft.names == "Nmeta")]*100, overwrite = TRUE)
-    } 
     
     # correspondance code BBCH
     
@@ -701,53 +315,9 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # there are multiple cultivars (varietes) in plt file
     # for now I assume we will always use only #1 in simulations 
     # hence, _tec file will always say variete==1, if you change the logic don't forget to update handling of the _tec file accordingly
-    
-    # maximal lifespan of an adult leaf expressed in summation of Q10=2 (2**(T-Tbase))
-    if ("leaf_lifespan_max" %in% pft.names) {
-      # this will modifies all varietes' durvieFs by default
-      SticsRFiles::set_param_xml(plant_file, "durvieF", pft.traits[which(pft.names == "leaf_lifespan_max")], overwrite = TRUE)
-      # see example for setting a particular (the Grindstad) cultivar param
-      # SticsRFiles::set_param_xml(plant_file, "durvieF", pft.traits[which(pft.names == "leaf_lifespan_max")], select = "Grindstad", overwrite = TRUE)    
-    }
-    
-    # cumulative thermal time between the stages LEV (emergence) and AMF (maximum acceleration of leaf growth, end of juvenile phase) 
-    if ("cum_thermal_juvenile" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "stlevamf", pft.traits[which(pft.names == "cum_thermal_juvenile")], overwrite = TRUE)
-    }
-    
-    # cumulative thermal time between the stages AMF (maximum acceleration of leaf growth, end of juvenile phase)  and LAX (maximum leaf area index, end of leaf growth)
-    if ("cum_thermal_growth" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "stamflax", pft.traits[which(pft.names == "cum_thermal_growth")], overwrite = TRUE)
-    }
-    
-    # cumulative thermal time between the stages LEV (emergence) and DRP (starting date of filling of harvested organs)
-    if ("cum_thermal_filling" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "stlevdrp", pft.traits[which(pft.names == "cum_thermal_filling")], overwrite = TRUE)
-    }
-    
-    if ("adens" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "adens", pft.traits[which(pft.names == "adens")], overwrite = TRUE)
-    }
-    
-    if ("croirac" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "croirac", pft.traits[which(pft.names == "croirac")], overwrite = TRUE)
-    }
-    
-    # extinction coefficient connecting LAI to crop height
-    if ("LAI2height" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "khaut", pft.traits[which(pft.names == "LAI2height")], overwrite = TRUE)
-    }
-    
-    # average root radius
-    if ("rayon" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "rayon", pft.traits[which(pft.names == "rayon")], overwrite = TRUE)
-    }
-    
-    # minimal value for drought stress index
-    if ("swfacmin" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "swfacmin", pft.traits[which(pft.names == "swfacmin")], overwrite = TRUE)
-    }
-    
+    # by default set_param_xml modifies the given parameter in all cultivars.
+   
+
     # Set the parameters that have been added to plt_df in the plant file.
     SticsRFiles::set_param_xml(plant_file, names(plt_df), plt_df[1, ], overwrite = TRUE)
     # convert xml2txt
@@ -1812,7 +1382,7 @@ pecan2stics <- function(trait.values){
     "dlaimaxbrut", "lai_max_rate", NA, NA, 
     "dlaimin", "lai_growth_rate_accelerating", NA, NA, 
     "draclong", "rootlength_prod_max", NA, NA, 
-    "durvieF", "leaf_lifespan_max", NA, NA, 
+    "durvieF", "leaf_lifespan_max", NA, NA,
     "durviesupmax",	"relative_addlifespan_DT_excessN", NA, NA, 
     "efcroijuv", "RUE_juv", NA, NA, 
     "efcroirepro", "RUE_rep", NA, NA, 
@@ -1834,6 +1404,7 @@ pecan2stics <- function(trait.values){
     "FTEMra", "FTEMra", NA, NA, 
     "h2ofeuilverte", "water_content_TLP_leaf", NA, NA, 
     "hautmax", "HTMAX", NA, NA, 
+    "height", "hautbase", NA, NA, 
     "hminm", "hminm", NA, NA, 
     "hoptm", "hoptm", NA, NA, 
     "INNmin", "INNmin", NA, NA, 
@@ -1846,17 +1417,18 @@ pecan2stics <- function(trait.values){
     "Kmabs1", "Kmabs1", NA, NA, 
     "kmax",	"crop_water_max", NA, NA, 
     "laicomp", "lai_comp", NA, NA, 
+    "longsperac", "SRL", NA, NA, 
     "lvfront", "rootdens_at_apex", NA, NA, 
     "lvopt", "lvopt", NA, NA, 
     "masecNmax", "masecNmax", NA, NA, 
     "maxazorac", "maxazorac", NA, NA, 
     "minazorac", "minazorac", NA, NA, 
     "minefnra", "minefnra", NA, NA, 
-    "nlevlim1",	"days_reduced_emergence_postgerm", NA, NA, 
+    "nlevlim1",	"days2reduced_emergence_postgerm", NA, NA, 
     "nlevlim2",	"days2stopped_emergence_postgerm", NA, NA, 
     "Nmeta", "Nmeta", NA, NA, 
     "Nreserve", "Nreserve", NA, NA, 
-    "parazofmort", "parazofmort", NA, NA, 
+    "parazofmorte", "parazofmorte", NA, NA, 
     "pentlaimax", "pentlaimax", NA, NA, 
     "pHmaxvol", "pHmaxvol", NA, NA, 
     "pHminvol", "pHminvol", NA, NA, 
@@ -1871,7 +1443,7 @@ pecan2stics <- function(trait.values){
     "proprac", "root2aerial_harvest", NA, NA, 
     "psihucc", "SWP_FC", NA, NA, 
     "psihumin",	"SWP_WP", NA, NA, 
-    "psisto", "psi_stomata_closure", NA, NA, 
+    "psisto", "psi_stomata_closure", NA, NA, # psisto, potential of stomatal closing (absolute value) (bars). note: units in betyDB are m, but Istem's prior is for testing 
     "psiturg", "leaf_psi_tlp", NA, NA, 
     "QNpltminINN", "QNpltminINN", NA, NA, 
     "rapsenturg", "rapsenturg", NA, NA, 
@@ -1881,8 +1453,8 @@ pecan2stics <- function(trait.values){
     "rdrain", "rdrain", NA, NA, 
     "remobres", "remobres", NA, NA, 
     "sensrsec",	"rootsens2drought", NA, NA, 
-    "SLAMAX", "SLAMAX",	"cm2 g-1", "m2 kg-1", 
-    "SLAMIN", "SLAMIN",	"cm2 g-1", "m2 kg-1", 
+    "slamax", "SLAMAX",	"cm2 g-1", "m2 kg-1", 
+    "slamin", "SLAMIN",	"cm2 g-1", "m2 kg-1", 
     "stamflax",	"cum_thermal_growth", NA, NA, 
     "stlevamf",	"cum_thermal_juvenile", NA, NA, 
     "stlevdrp",	"cum_thermal_filling", NA, NA, 
@@ -1912,10 +1484,8 @@ pecan2stics <- function(trait.values){
     "y0msrac", "rootmin_harvest", NA, NA, 
     "yres", "microbialbiomass_C_yield", NA, NA,
     # Missing pecan parameters without corresponding STICS parameters
-    "SLA", "SLA", NA, NA, 
-    "SRL", "SRL", NA, NA, 
-    "height", "height", NA, NA,
-    )
+    "SLA", "SLA", NA, NA
+  )
   
   trait.values <- lapply(trait.values, function(x){
     names(x) <- vartable$sticsname[match(names(x), vartable$pecanname)]
