@@ -209,39 +209,39 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "phasic development")
     # unlist(values)
     
+    # Creating a dataframe of the parameter names and their values for feeding into SticsRFiles::set_param_xml.
+    # Note we need one entry in the dataframe to begin with
+    plt_df <- data.frame(codebfroid = 2) # vernalization requirement, hardcoding for now, 2==yes. 
+    SticsRFiles::set_param_xml(plant_file, param = names(pft.traits), values = unname(pft.traits), overwrite = TRUE)
     # name code of plant in 3 letters
     # a handful of plants have to have specific codes, e.g. forages need to be 'fou' and vine needs to be 'vig'
     # but others can be anything? if not, either consider a LUT or passing via settings
     if(names(trait.values)[pft] %in% c("frg", "wcl", "alf")){
-      codeplante <- 'fou'
-      codeperenne <- 2
+      plt_df$codeplante <- "fou"
+      plt_df$codeperenne <- 2
     }else{
-      codeplante <- base::substr(names(trait.values)[pft],1,3)
-      codeperenne <- 1
+      plt_df$codeplante <- base::substr(names(trait.values)[pft],1,3)
+      plt_df$codeperenne <- 1
     }
-    codebfroid <- 2 # vernalization requirement, hardcoding for now, 2==yes
-    SticsRFiles::set_param_xml(plant_file, "codeplante", codeplante, overwrite = TRUE)
-    SticsRFiles::set_param_xml(plant_file, "codeperenne", codeperenne, overwrite = TRUE)
-    SticsRFiles::set_param_xml(plant_file, "codebfroid", codebfroid, overwrite = TRUE)
     
     # minimum temperature below which development stops (degree C)
     if ("tdmin" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "tdmin", pft.traits[which(pft.names == "tdmin")], overwrite = TRUE)
+      plt_df$tdmin <- pft.traits[which(pft.names == "tdmin")]
     }
     
     # maximum temperature above which development stops (degree C)
     if ("tdmax" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "tdmax", pft.traits[which(pft.names == "tdmax")], overwrite = TRUE)
+      plt_df$tdmax <- pft.traits[which(pft.names == "tdmax")]
     }
     
     # basal photoperiod
     if ("phobase" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "phobase", pft.traits[which(pft.names == "phobase")], overwrite = TRUE)
+      plt_df$phobase <- pft.traits[which(pft.names == "phobase")]
     }
     
     # saturating photoperiod
     if ("phosat" %in% pft.names) {
-      SticsRFiles::set_param_xml(plant_file, "phosat", pft.traits[which(pft.names == "phosat")], overwrite = TRUE)
+      plt_df$phosat <- pft.traits[which(pft.names == "phosat")]
     }
     
     
@@ -746,6 +746,8 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
       SticsRFiles::set_param_xml(plant_file, "swfacmin", pft.traits[which(pft.names == "swfacmin")], overwrite = TRUE)
     }
     
+    # Set the parameters that have been added to plt_df in the plant file.
+    SticsRFiles::set_param_xml(plant_file, names(plt_df), plt_df[1, ], overwrite = TRUE)
     # convert xml2txt
     if(names(trait.values)[pft] != "env"){
       SticsRFiles::convert_xml2txt(file = plant_file)
@@ -1754,3 +1756,5 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   
 
 } # write.config.STICS
+
+
