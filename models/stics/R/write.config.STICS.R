@@ -174,6 +174,8 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   
   ## this is where we overwrite model parameters
   
+  # Convert pecan parameters to stics names
+  trait.values <- pecan2stics(trait.values)
   # read in template plt file, has all the formalisms
   plt_xml  <- XML::xmlParse(system.file("crop_plt.xml", package = "PEcAn.STICS"))
   #plt_list <- XML::xmlToList(plt_xml)
@@ -1760,17 +1762,17 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
 
 # ==================================================================================================#
 #' Function to translate pecan param names and units to stics names and units.
-#' Where units are the same they are left as NA.
 #' @export
 #' @param trait.values trait.values, list
 #' @return translated list
 #' @author Quentin Bell
-#' Based on pecan2lpjguess function by Istem Fer https://github.com/PecanProject/pecan/blob/develop/models/lpjguess/R/write.config.LPJGUESS.R#L229
+# Based on pecan2lpjguess function by Istem Fer https://github.com/PecanProject/pecan/blob/develop/models/lpjguess/R/write.config.LPJGUESS.R#L229
 pecan2stics <- function(trait.values){
   
   # TODO :match all stics and pecan names
   vartable <- tibble::tribble(
-    ~pecanname, ~sticsname, ~pecanunits, ~sticsunits, 
+    ~sticsname, ~pecanname, ~sticsunits, ~pecanunits, 
+    # Plant and soil related parameters
     "abscission", "fracLeafFall",	NA, NA, 
     "adens", "adens",	NA, NA, 
     "adil", "adil",	NA, NA, 
@@ -1879,8 +1881,8 @@ pecan2stics <- function(trait.values){
     "rdrain", "rdrain", NA, NA, 
     "remobres", "remobres", NA, NA, 
     "sensrsec",	"rootsens2drought", NA, NA, 
-    "SLAMAX", "SLAMAX",	"cm2 g-1",	"m2 kg-1", 
-    "SLAMIN", "SLAMIN",	"cm2 g-1",	"m2 kg-1", 
+    "SLAMAX", "SLAMAX",	"cm2 g-1", "m2 kg-1", 
+    "SLAMIN", "SLAMIN",	"cm2 g-1", "m2 kg-1", 
     "stamflax",	"cum_thermal_growth", NA, NA, 
     "stlevamf",	"cum_thermal_juvenile", NA, NA, 
     "stlevdrp",	"cum_thermal_filling", NA, NA, 
@@ -1890,7 +1892,7 @@ pecan2stics <- function(trait.values){
     "tcmax", "tcmax_growth", NA, NA, 
     "tcmin", "tcmin_growth", NA, NA, 
     "tcxstop", "tcmax_foliar_growth", NA, NA, 
-    "tdmax", "tcmax_foliar_growth", NA, NA, 
+    "tdmax", "tdmax", NA, NA, 
     "tdmin", "tdmin", NA, NA, 
     "temax", "temax", NA, NA, 
     "temin", "temin", NA, NA, 
@@ -1908,7 +1910,11 @@ pecan2stics <- function(trait.values){
     "Wh", "Wh", NA, NA, 
     "Xorgmax", "maxNimm_mineralfert", NA, NA, 
     "y0msrac", "rootmin_harvest", NA, NA, 
-    "yres", "microbialbiomass_C_yield", NA, NA, 
+    "yres", "microbialbiomass_C_yield", NA, NA,
+    # Missing pecan parameters without corresponding STICS parameters
+    "SLA", "SLA", NA, NA, 
+    "SRL", "SRL", NA, NA, 
+    "height", "height", NA, NA,
     )
   
   trait.values <- lapply(trait.values, function(x){
