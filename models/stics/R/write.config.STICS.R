@@ -196,7 +196,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     }
     
     # Apply changes to those parameters specified by trait.values for this pft.
-    SticsRFiles::set_param_xml(plant_file, param = names(pft.traits), values = unname(pft.traits), overwrite = TRUE)
+    SticsRFiles::set_param_xml(plant_file, param = names(pft.traits), values = as.list(unname(pft.traits)), overwrite = TRUE)
     
     plt_files[[pft]] <- plant_file
     
@@ -352,83 +352,38 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     gen_xml  <- XML::xmlParse(system.file("param_gen.xml", package = "PEcAn.STICS"))
     gen_file <- file.path(rundir, "param_gen.xml")
     XML::saveXML(gen_xml, file = gen_file)
-    codeinitprec <- ifelse(length(usmdirs>1), 1, 2) 
-    SticsRFiles::set_param_xml(gen_file, "codeinitprec", codeinitprec, overwrite = TRUE)
     
+    # This input file is created from the template and not modified.
     newf_xml  <- XML::xmlParse(system.file("param_newform.xml", package = "PEcAn.STICS"))
     newf_file <- file.path(rundir, "param_newform.xml")
     XML::saveXML(newf_xml, file = newf_file)  
 
+
+    # Creating a dataframe of parameter names and their values for feeding into SticsRFiles::set_param_xml.
+    # Note that the parameters in the data frame are either hardcoded for now or otherwise require special treatment.
+    soil_df <- data.frame(codeinitprec = ifelse(length(usmdirs>1), 1, 2)) # reset initial conditions in chained simulations
     
     pft.traits <- unlist(trait.values[[pft]])
     pft.names  <- names(pft.traits)
     
-    ### Shoot growth
-    # parameter defining radiation effect on conversion efficiency
-    if ("rad_on_conversion_eff" %in% pft.names) {
-      SticsRFiles::set_param_xml(gen_file, "coefb", pft.traits[which(pft.names == "rad_on_conversion_eff")], overwrite = TRUE)
+    # Apply changes to those parameters specified by trait.values for this pft.
+    if (!is.null(pft.traits)) {
+      SticsRFiles::set_param_xml(gen_file, param = names(pft.traits), values = as.list(unname(pft.traits)), overwrite = TRUE)
     }
     
-    # ratio of root mass to aerial mass at harvest
-    if ("root2aerial_harvest" %in% pft.names) {
-      SticsRFiles::set_param_xml(gen_file, "proprac", pft.traits[which(pft.names == "root2aerial_harvest")], overwrite = TRUE)
-    }
-
-    # minimal amount of root mass at harvest (when aerial biomass is nil) t.ha-1
-    if ("rootmin_harvest" %in% pft.names) {
-      SticsRFiles::set_param_xml(gen_file, "y0msrac", pft.traits[which(pft.names == "rootmin_harvest")], overwrite = TRUE)
-    }
+    
+    ### Shoot growth
     
     ### Root growth
     
-    # bulk density of soil below which root growth is reduced due to a lack of soil cohesion (g.cm-3)
-    if ("bd_rootgrowth_reduced" %in% pft.names) {
-      SticsRFiles::set_param_xml(gen_file, "dacohes", pft.traits[which(pft.names == "bd_rootgrowth_reduced")], overwrite = TRUE)
-    }
-    
-    # bulk density of soil above which root growth is maximal (g.cm-3)
-    if ("bd_rootgrowth_maximal" %in% pft.names) {
-      SticsRFiles::set_param_xml(gen_file, "daseuilbas", pft.traits[which(pft.names == "bd_rootgrowth_maximal")], overwrite = TRUE)
-    }
-    
-    # bulk density of soil above which root growth becomes impossible (g.cm-3)
-    if ("bd_rootgrowth_impossible" %in% pft.names) {
-      SticsRFiles::set_param_xml(gen_file, "daseuilhaut", pft.traits[which(pft.names == "bd_rootgrowth_impossible")], overwrite = TRUE)
-    }
-    
     ### Water absorption and nitrogen content of the plant
-    
-    # parameter of increase of maximal transpiration when a water stress occurs
-    if ("maxTPincrease_waterstress" %in% pft.names) {
-      SticsRFiles::set_param_xml(gen_file, "beta", pft.traits[which(pft.names == "maxTPincrease_waterstress")], overwrite = TRUE)
-    }
-    
-    # root length density (RLD) above which water and N uptake are maximum and independent of RLD
-    if ("lvopt" %in% pft.names) {
-      SticsRFiles::set_param_xml(gen_file, "lvopt", pft.traits[which(pft.names == "lvopt")], overwrite = TRUE)
-    }
-
-    # diffusion coefficient of nitrate N in soil at field capacity
-    if ("difN_FC" %in% soil.names) {
-      SticsRFiles::set_param_xml(gen_file, "difN", soil_params[which(soil.names == "difN_FC")], overwrite = TRUE)
-    }
     
     # skipping
     # concrr: inorganic N concentration (NH4+NO3-N) in the rain
-    
-    # minimal amount of rain required to start an automatic fertilisation (N mm.d-1)
-    if ("plNmin" %in% soil.names) {
-      SticsRFiles::set_param_xml(gen_file, "plNmin", soil_params[which(soil.names == "plNmin")], overwrite = TRUE)
-    }
 
     # skipping, irrlev:
     # amount of irrigation applied automatically on the sowing day to allow germination when the model calculates automaticaly 
     # the amount of irrigations or when the irrigation dates are calculated by sum of temperature
-    
-    # minimal amount of N in the plant required to compute INN (kg.ha-1)
-    if ("QNpltminINN" %in% pft.names) {
-      SticsRFiles::set_param_xml(gen_file, "QNpltminINN", pft.traits[which(pft.names == "QNpltminINN")], overwrite = TRUE)
-    }
     
     ### Soil C and N processes and fertiliser losses
     
@@ -1404,7 +1359,7 @@ pecan2stics <- function(trait.values){
     "FTEMra", "FTEMra", NA, NA, 
     "h2ofeuilverte", "water_content_TLP_leaf", NA, NA, 
     "hautmax", "HTMAX", NA, NA, 
-    "height", "hautbase", NA, NA, 
+    "hautbase", "height", NA, NA, 
     "hminm", "hminm", NA, NA, 
     "hoptm", "hoptm", NA, NA, 
     "INNmin", "INNmin", NA, NA, 
