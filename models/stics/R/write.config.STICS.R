@@ -604,18 +604,17 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   #   SticsRFiles::set_param_xml(gen_file, "finert", soil_params[which(soil.names == "FINERT")], overwrite = TRUE)
   # }
   
-  sols_file <- file.path(rundir, "param.sol")
+  sols_file <- file.path(rundir, "sols.xml")
   
-  # cp template sols file (txt)
-  file.copy(system.file("param.sol", package = "PEcAn.STICS"), sols_file)
+  # cp template sols file (xml)
+  # file.copy(system.file("sols.xml", package = "PEcAn.STICS"), sols_file)
   
   # check param names
   # sols_vals  <- SticsRFiles::get_soil_txt(sols_file)
   
   str_ns <- paste0(as.numeric(settings$run$site$id) %/% 1e+09, "-", as.numeric(settings$run$site$id) %% 1e+09)
   
-  # I guess not important what this is called as long as it's consistent in usms
-  SticsRFiles::set_soil_txt(file = sols_file, param="typsol", value=paste0("sol", str_ns))
+  soils_df <- data.frame(soil_name = str_ns)
   
   if(!is.null(settings$run$inputs$poolinitcond)){
     ic_path <- settings$run$inputs$poolinitcond$path
@@ -623,48 +622,54 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     
     # pH
     pH    <- ncdf4::ncvar_get(ic_nc, "pH")
-    pH    <- round(pH[1], digits = 1) # STICS uses 1 pH value
-    SticsRFiles::set_soil_txt(file = sols_file, param="pH", value=pH)
- 
-    sapply(1:5, function(x) SticsRFiles::set_soil_txt(file = sols_file, param="epc", value=20, layer = x)) 
+    soils_df$pH <- round(pH[1], digits = 1) # STICS uses 1 pH value
+    
+    # Thickness of each soil layer. This sets all (five) at 20cm, to set individual ones use epc_1, epc_2, etc.
+    soils_df$epc <- 20
     
     # volume_fraction_of_water_in_soil_at_field_capacity
     hccf    <- ncdf4::ncvar_get(ic_nc, "volume_fraction_of_water_in_soil_at_field_capacity")
     hccf    <- round(hccf*100, digits = 2)
-    sapply(seq_along(hccf), function(x) SticsRFiles::set_soil_txt(file = sols_file, param="hccf", value=hccf[x], layer = x)) 
+    names(hccf) <- paste0("HCCF_", c(1:length(hccf)))
+    soils_df <- cbind(soils_df, t(hccf))
     
     # volume_fraction_of_condensed_water_in_soil_at_wilting_point
     hminf    <- ncdf4::ncvar_get(ic_nc, "volume_fraction_of_condensed_water_in_soil_at_wilting_point")
     hminf    <- round(hminf*100, digits = 2)
-    sapply(seq_along(hminf), function(x) SticsRFiles::set_soil_txt(file = sols_file, param="hminf", value=hminf[x], layer = x)) 
+    names(hminf) <- paste0("HMINF_", c(1:length(hminf)))
+    soils_df <- cbind(soils_df, t(hminf))
     
     # soil_organic_nitrogen_content
     Norg    <- ncdf4::ncvar_get(ic_nc, "soil_organic_nitrogen_content")
     Norg    <- round(Norg[1]*100, digits = 2) # STICS uses 1 Norg value
-    SticsRFiles::set_soil_txt(file = sols_file, param="Norg", value=Norg) 
+    soils_df$Norg <- Norg
 
     # mass_fraction_of_clay_in_soil
     argi    <- ncdf4::ncvar_get(ic_nc, "mass_fraction_of_clay_in_soil")
     argi    <- round(argi[1]*100, digits = 0) # STICS uses 1 argi value
-    SticsRFiles::set_soil_txt(file = sols_file, param="argi", value=argi) 
+    soils_df$argi <- argi
     
     # soil_density (kg m-3 --> g cm-3)
     DAF    <- ncdf4::ncvar_get(ic_nc, "soil_density")
     DAF    <- round(PEcAn.utils::ud_convert(DAF, "kg m-3", "g cm-3"), digits = 1)
-    sapply(seq_along(DAF), function(x) SticsRFiles::set_soil_txt(file = sols_file, param="DAF", value=DAF[x], layer = x)) 
+    names(DAF) <- paste0("DAF_", c(1:length(DAF)))
+    soils_df <- cbind(soils_df, t(DAF))
     
     # c2n_humus
-    #CsurNsol0    <- ncdf4::ncvar_get(ic_nc, "c2n_humus")
-    #SticsRFiles::set_soil_txt(file = sols_file, param="CsurNsol", value=CsurNsol0) 
+    # CsurNsol0    <- ncdf4::ncvar_get(ic_nc, "c2n_humus")
+    # soils_df$CsurNsol0 <- CsurNsol0
     
-    # epd 
+    # epd: thickness of mixing cells in each soil layer ( = 2 * dispersion length)
     epd <- rep(10, 5)
-    sapply(seq_along(epd), function(x) SticsRFiles::set_soil_txt(file = sols_file, param="epd", value=epd[x], layer = x)) 
-
+    names(epd) <- paste0("epd_", c(1:length(epd)))
+    soils_df <- cbind(soils_df, t(epd))
     
     ncdf4::nc_close(ic_nc)
   }
   
+  SticsRFiles::gen_sols_xml(sols_file, param_df = soils_df, template = system.file("sols.xml", package = "PEcAn.STICS"))
+  SticsRFiles::convert_xml2txt(file = sols_file)
+  file.rename(file.path(rundir, "ficini.txt"), file.path(usmdirs[i], "ficini.txt"))
   file.copy(sols_file, file.path(usmdirs, "param.sol"))
   
   # DO NOTHING ELSE FOR NOW
