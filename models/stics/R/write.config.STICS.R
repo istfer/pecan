@@ -612,7 +612,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   # check param names
   # sols_vals  <- SticsRFiles::get_soil_txt(sols_file)
   
-  str_ns <- paste0(as.numeric(settings$run$site$id) %/% 1e+09, "-", as.numeric(settings$run$site$id) %% 1e+09)
+  str_ns <- paste0("sol", as.numeric(settings$run$site$id) %/% 1e+09, "-", as.numeric(settings$run$site$id) %% 1e+09)
   
   soils_df <- data.frame(soil_name = str_ns)
   
@@ -642,7 +642,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # soil_organic_nitrogen_content
     Norg    <- ncdf4::ncvar_get(ic_nc, "soil_organic_nitrogen_content")
     Norg    <- round(Norg[1]*100, digits = 2) # STICS uses 1 Norg value
-    soils_df$Norg <- Norg
+    soils_df$norg <- Norg
 
     # mass_fraction_of_clay_in_soil
     argi    <- ncdf4::ncvar_get(ic_nc, "mass_fraction_of_clay_in_soil")
@@ -668,9 +668,9 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   }
   
   SticsRFiles::gen_sols_xml(sols_file, param_df = soils_df, template = system.file("sols.xml", package = "PEcAn.STICS"))
+  SticsRFiles:::gen_sol_xsl_file(soil_name = "sol15-140")
   SticsRFiles::convert_xml2txt(file = sols_file)
-  file.rename(file.path(rundir, "ficini.txt"), file.path(usmdirs[i], "ficini.txt"))
-  file.copy(sols_file, file.path(usmdirs, "param.sol"))
+  file.copy(file.path(rundir, "param.sol"), file.path(usmdirs, "param.sol"))
   
   # DO NOTHING ELSE FOR NOW
 
