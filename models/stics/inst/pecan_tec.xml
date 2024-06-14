@@ -61,7 +61,7 @@
     <option choix="2" nom="forcing" nomParam="codestade">
       <choix code="1" nom="yes">
         <param format="integer" max="731" min="1" nom="ilev">999</param>
-        <param format="integer" max="731" min="1" nom="iamf">442</param>
+        <param format="integer" max="731" min="1" nom="iamf">999</param>
         <param format="integer" max="731" min="1" nom="ilax">999</param>
         <param format="integer" max="731" min="1" nom="isen">999</param>
         <param format="integer" max="731" min="1" nom="ilan">999</param>
