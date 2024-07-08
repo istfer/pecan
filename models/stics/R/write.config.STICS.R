@@ -492,7 +492,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # maximal amount of decomposable mulch
       
     # Set the parameters that have been added to gen_df in the param_gen file.
-    SticsRFiles::set_param_xml(gen_file, names(gen_df), soil_df[1, ], overwrite = TRUE)
+    SticsRFiles::set_param_xml(gen_file, names(gen_df), gen_df[1, ], overwrite = TRUE)
     # 
     # SticsRFiles::convert_xml2txt(file = gen_file)
     # 
@@ -713,191 +713,196 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   ## this is where we modify management practices
   ## TODO: use ICASA compatible json file
   
-  ## instead of using a template, this could be easier if we prepare a dataframe and use SticsRFiles::gen_tec_xml
-  tec_df <- data.frame(Tec_name = paste0(basename(usmdirs[usmi]), "_tec.xml"))
-  
-  # these shouldn't be empty even if we don't use them (values from timothy example in STICS)
-  tec_df$iplt0 <- 999 # date of sowing
-  tec_df$profsem <- 2 # depth of sowing
-  tec_df$densitesem <- 100 # plant sowing density
-  tec_df$variete <- 1 # cultivar number corresponding to the cultivar name in the plant file (could be passed via a field activity file)
-  tec_df$irecbutoir <- 999 #latest date of harvest (imposed if the crop cycle is not finished at this date)
-  tec_df$profmes <- 120 # depth of measurement of the soil water reserve (cm)
-  #tec_df$engrais <- 1 # fertilizer type
-  tec_df$concirr <- 0.11 # concentration of mineral N in irrigation water (kg ha-1 mm-1)
-  tec_df$ressuite <- 'straw+roots' # type of crop residue
-  tec_df$h2ograinmax <- 0.32 # maximal water content of fruits at harvest
-
-  # the following formalisms exist in the tec file:
-  ## supply of organic residus
-  ## soil tillage
-  ## sowing
-  ## phenological stages
-  ## irrigation
-  ## fertilisation
-  ## harvest
-  ## special techniques
-  ## soil modification by techniques (compaction-fragmentation)
-  
-  # if a field activity file is given, most (all?) of our harvest cases are actually fall under special techniques - cut crop
-  if(!is.null(settings$run$inputs$fielddata)){
+  all_tec_df <- data.frame()
+  for (i in seq_along(usmdirs)) {
+    ## instead of using a template, this could be easier if we prepare a dataframe and use SticsRFiles::gen_tec_xml
+    tec_df <- data.frame(Tec_name = paste0(basename(usmdirs[i]), "_tec.xml"))
     
-    events_file <- jsonlite::read_json(settings$run$inputs$fielddata$path, simplifyVector = TRUE)[[1]]
-    # loop for each USM
-    for(usmi in seq_along(usmdirs)){
-      
-      usm_years <- c(sapply(strsplit(sub(".*_", "", basename(usmdirs[usmi])), "-"), function(x) (as.numeric(x))))
-      # note that usm years can overlap, may need more sophisticated checks
-      dseq_sub <- dseq[lubridate::year(dseq) %in% usm_years]
-      
-      events_sub <- events_file$events[lubridate::year(events_file$events$date) %in% usm_years, ]
-      
-      if("planting" %in% events_sub$mgmt_operations_event){
-        
-        pl_date <- events_sub$date[events_sub$mgmt_operations_event == "planting"]
-        tec_df$iplt0 <- lubridate::yday(as.Date(pl_date))
-        
-        profsem <- events_sub$planting_depth[events_sub$mgmt_operations_event == "planting"]
-        if(!is.null(profsem)){
-          tec_df$profsem <- as.numeric(profsem) # depth of sowing
-        }
-        
-        densitesem <- events_sub$planting_sowing_density[events_sub$mgmt_operations_event == "planting"]
-        if(!is.null(densitesem)){
-          tec_df$densitesem <- as.numeric(densitesem) # plant sowing density
-        }
-        
-        # any other?
-      }
-      
-      if("harvest" %in% events_sub$mgmt_operations_event){
-        # param names
-        h_param_names <- c("julfauche"  , # date of each cut for forage crops, julian.d
-                           "hautcoupe"  , # cut height for forage crops, m
-                           "lairesiduel", # residual LAI after each cut of forage crop, m2 m-2
-                           "msresiduel" , # residual aerial biomass after a cut of a forage crop, t.ha-1
-                           "anitcoupe",
-                           "engraiscoupe",
-                           "tauxexportfauche",
-                           "restit",
-                           "mscoupemini")   # amount of mineral N added by fertiliser application at each cut of a forage crop, kg.ha-1
-
-
-        harvest_sub <- events_sub[events_sub$mgmt_operations_event == "harvest",]
- 
-        harvest_list <- list()
-        for(hrow in seq_len(nrow(harvest_sub))){
-          
-          # empty
-          harvest_df <- data.frame(julfauche = NA, hautcoupe = NA, lairesiduel = NA,  msresiduel = NA, anitcoupe = NA) 
-          
-          
-          # If given harvest date is within simulation days
-          # probably need to break down >2 years into multiple usms
-          if(as.Date(harvest_sub$date[hrow]) %in% dseq_sub){
-            
-            # STICS needs cutting days in cumulative julian days 
-            # e.g. first cutting day of the first simulation year can be 163 (2018-06-13)
-            # in following years it should be cumulative, meaning a cutting day on 2019-06-12 is 527, not 162
-            # the following code should give that
-            harvest_df$julfauche   <- which(dseq_sub == as.Date(harvest_sub$date[hrow])) + lubridate::yday(dseq_sub[1]) - 1
-            if("frg" %in% tolower(harvest_sub$harvest_crop) |
-               "wcl" %in% tolower(harvest_sub$harvest_crop)){
-              tec_df$irecbutoir <- 999
-              if(!is.null(events_file$rotation)){
-                tind <-  which(dseq_sub == as.Date(events_file$rotation$rotation_end[usmi]))  + lubridate::yday(dseq_sub[1]) - 1
-                tec_df$irecbutoir <-  ifelse(length(tind) == 0, 999, tind)
-              }
-            }else{
-              tec_df$irecbutoir <- harvest_df$julfauche
-            }
-            harvest_df$hautcoupe <- as.numeric(harvest_sub$harvest_cut_height[harvest_sub$date==harvest_sub$date[hrow]]) # # cut height for forage crops
-            harvest_df$hautcoupe <- ifelse(harvest_df$hautcoupe == -99, 0.05, harvest_df$hautcoupe)
-            harvest_df$lairesiduel <- ifelse(harvest_df$hautcoupe < 0.08, 0.2, 0.8) # hardcode for now
-            harvest_df$msresiduel <- ifelse(harvest_df$hautcoupe < 0.08, 0.05, 0.3) # residual aerial biomass after a cut of a forage crop (t ha-1)
-            harvest_df$anitcoupe <- 21 # amount of mineral N added by fertiliser application at each cut of a forage crop (kg ha-1)
-            harvest_df$engraiscoupe <- 0
-            harvest_df$tauxexportfauche <- 0
-            harvest_df$restit <- 0
-            harvest_df$mscoupemini <- 0
-          }
-          
-          colnames(harvest_df) <- paste0(h_param_names, "_", hrow)
-          harvest_list[[hrow]] <- harvest_df
-        }
-        harvest_tec <- do.call("cbind", harvest_list) 
-        
-        # need to get these from field data
-        # cut crop - 1:yes, 2:no
-        if("frg" %in% tolower(harvest_sub$harvest_crop) | "wcl" %in% tolower(harvest_sub$harvest_crop)){
-          harvest_tec$codefauche <- 1
-        }else{
-          harvest_tec$codefauche <- 2 
-        }
-        #harvest_tec$mscoupemini <- 0 # min val of aerial biomass to make a cut
-        harvest_tec$codemodfauche <- 2 # use calendar days
-        harvest_tec$hautcoupedefaut <- 0.05 # cut height for forage crops (calendar calculated)
-        harvest_tec$stadecoupedf <- "rec"
-        
-        
-      } #harvest-if end
-      
-      if("organic_material" %in% events_sub$mgmt_operations_event |
-         "fertilizer" %in% events_sub$mgmt_operations_event){
-        # param names
-        f_param_names <- c("julapN", # date of fertilization, julian.d
-                           "absolute_value/%")   # cut height for forage crops, m
-        
-        
-        fert_sub <- events_sub[events_sub$mgmt_operations_event %in% c("organic_material", "fertilizer"),]
-        
-        fert_list <- list()
-        for(frow in seq_len(nrow(fert_sub))){
-          
-          # empty
-          fert_df <- data.frame(jul = NA, val = NA) 
-
-          # If given fertilization date is within simulation days
-          if(as.Date(fert_sub$date[frow]) %in% dseq_sub){
-            
-            fert_df$jul   <- which(dseq_sub == as.Date(fert_sub$date[frow])) + lubridate::yday(dseq_sub[1]) - 1
-            
-            if(fert_sub$mgmt_operations_event[frow] == "organic_material"){
-              Nprcnt <- ifelse(as.numeric(fert_sub$organic_material_N_conc[frow]) < 0, 5, as.numeric(fert_sub$organic_material_N_conc[frow]))
-              fert_df$val <- as.numeric(fert_sub$org_material_applic_amnt[frow]) * (Nprcnt/100)
-            }else{
-              fert_df$val <- as.numeric(fert_sub$N_in_applied_fertilizer[frow])
-            }
-            
-          }
-          
-          colnames(fert_df) <- paste0(f_param_names, "_", frow)
-          fert_list[[frow]] <- fert_df
-        }
-        fert_tec <- do.call("cbind", fert_list) 
-      } #fertilizer-if end
-        
-        
-        # DO NOTHING ELSE FOR NOW
-        # TODO: ADD OTHER MANAGEMENT
-        
-        # same usm -> continue columns
-        usm_tec_df <- cbind(tec_df, harvest_tec, fert_tec)
-        
-        usm_tec_df$ratiol <- 0
-        
-        SticsRFiles::gen_tec_xml(param_df = tec_df,
-                                 file=system.file("pecan_tec.xml", package = "PEcAn.STICS"),
-                                 out_dir = rundir)
-        
-        # TODO: more than 1 USM, rbind
-        
-        # SticsRFiles::convert_xml2txt(file = file.path(rundir, paste0(basename(usmdirs[usmi]), "_tec.xml"))
-        
-      
-     } # end-loop over usms
-    } # TODO: if no events file is given modify other harvest parameters, e.g. harvest decision
+    # these shouldn't be empty even if we don't use them (values from timothy example in STICS)
+    tec_df$iplt0 <- 999 # date of sowing
+    tec_df$profsem <- 2 # depth of sowing
+    tec_df$densitesem <- 100 # plant sowing density
+    tec_df$variete <- 1 # cultivar number corresponding to the cultivar name in the plant file (could be passed via a field activity file)
+    tec_df$irecbutoir <- 999 #latest date of harvest (imposed if the crop cycle is not finished at this date)
+    tec_df$profmes <- 120 # depth of measurement of the soil water reserve (cm)
+    #tec_df$engrais <- 1 # fertilizer type
+    tec_df$concirr <- 0.11 # concentration of mineral N in irrigation water (kg ha-1 mm-1)
+    tec_df$ressuite <- 'straw+roots' # type of crop residue
+    tec_df$h2ograinmax <- 0.32 # maximal water content of fruits at harvest
   
+    # the following formalisms exist in the tec file:
+    ## supply of organic residus
+    ## soil tillage
+    ## sowing
+    ## phenological stages
+    ## irrigation
+    ## fertilisation
+    ## harvest
+    ## special techniques
+    ## soil modification by techniques (compaction-fragmentation)
+    
+    # if a field activity file is given, most (all?) of our harvest cases are actually fall under special techniques - cut crop
+    if(!is.null(settings$run$inputs$fielddata)){
+      
+      events_file <- jsonlite::read_json(settings$run$inputs$fielddata$path, simplifyVector = TRUE)[[1]]
+      # loop for each USM
+      for(usmi in seq_along(usmdirs)){
+        
+        usm_years <- c(sapply(strsplit(sub(".*_", "", basename(usmdirs[usmi])), "-"), function(x) (as.numeric(x))))
+        # note that usm years can overlap, may need more sophisticated checks
+        dseq_sub <- dseq[lubridate::year(dseq) %in% usm_years]
+        
+        events_sub <- events_file$events[lubridate::year(events_file$events$date) %in% usm_years, ]
+        
+        if("planting" %in% events_sub$mgmt_operations_event){
+          
+          pl_date <- events_sub$date[events_sub$mgmt_operations_event == "planting"]
+          tec_df$iplt0 <- lubridate::yday(as.Date(pl_date))
+          
+          profsem <- events_sub$planting_depth[events_sub$mgmt_operations_event == "planting"]
+          if(!is.null(profsem)){
+            tec_df$profsem <- as.numeric(profsem) # depth of sowing
+          }
+          
+          densitesem <- events_sub$planting_sowing_density[events_sub$mgmt_operations_event == "planting"]
+          if(!is.null(densitesem)){
+            tec_df$densitesem <- as.numeric(densitesem) # plant sowing density
+          }
+          
+          # any other?
+        }
+        
+        if("harvest" %in% events_sub$mgmt_operations_event){
+          # param names
+          h_param_names <- c("julfauche"  , # date of each cut for forage crops, julian.d
+                             "hautcoupe"  , # cut height for forage crops, m
+                             "lairesiduel", # residual LAI after each cut of forage crop, m2 m-2
+                             "msresiduel" , # residual aerial biomass after a cut of a forage crop, t.ha-1
+                             "anitcoupe",
+                             "engraiscoupe",
+                             "tauxexportfauche",
+                             "restit",
+                             "mscoupemini")   # amount of mineral N added by fertiliser application at each cut of a forage crop, kg.ha-1
+  
+  
+          harvest_sub <- events_sub[events_sub$mgmt_operations_event == "harvest",]
+   
+          harvest_list <- list()
+          for(hrow in seq_len(nrow(harvest_sub))){
+            
+            # empty
+            harvest_df <- data.frame(julfauche = NA, hautcoupe = NA, lairesiduel = NA,  msresiduel = NA, anitcoupe = NA) 
+            
+            
+            # If given harvest date is within simulation days
+            # probably need to break down >2 years into multiple usms
+            if(as.Date(harvest_sub$date[hrow]) %in% dseq_sub){
+              
+              # STICS needs cutting days in cumulative julian days 
+              # e.g. first cutting day of the first simulation year can be 163 (2018-06-13)
+              # in following years it should be cumulative, meaning a cutting day on 2019-06-12 is 527, not 162
+              # the following code should give that
+              harvest_df$julfauche   <- which(dseq_sub == as.Date(harvest_sub$date[hrow])) + lubridate::yday(dseq_sub[1]) - 1
+              if("frg" %in% tolower(harvest_sub$harvest_crop) |
+                 "wcl" %in% tolower(harvest_sub$harvest_crop)){
+                tec_df$irecbutoir <- 999
+                if(!is.null(events_file$rotation)){
+                  tind <-  which(dseq_sub == as.Date(events_file$rotation$rotation_end[usmi]))  + lubridate::yday(dseq_sub[1]) - 1
+                  tec_df$irecbutoir <-  ifelse(length(tind) == 0, 999, tind)
+                }
+              }else{
+                tec_df$irecbutoir <- harvest_df$julfauche
+              }
+              harvest_df$hautcoupe <- as.numeric(harvest_sub$harvest_cut_height[harvest_sub$date==harvest_sub$date[hrow]]) # # cut height for forage crops
+              harvest_df$hautcoupe <- ifelse(harvest_df$hautcoupe == -99, 0.05, harvest_df$hautcoupe)
+              harvest_df$lairesiduel <- ifelse(harvest_df$hautcoupe < 0.08, 0.2, 0.8) # hardcode for now
+              harvest_df$msresiduel <- ifelse(harvest_df$hautcoupe < 0.08, 0.05, 0.3) # residual aerial biomass after a cut of a forage crop (t ha-1)
+              harvest_df$anitcoupe <- 21 # amount of mineral N added by fertiliser application at each cut of a forage crop (kg ha-1)
+              harvest_df$engraiscoupe <- 0
+              harvest_df$tauxexportfauche <- 0
+              harvest_df$restit <- 0
+              harvest_df$mscoupemini <- 0
+            }
+            
+            colnames(harvest_df) <- paste0(h_param_names, "_", hrow)
+            harvest_list[[hrow]] <- harvest_df
+          }
+          harvest_tec <- do.call("cbind", harvest_list) 
+          
+          # need to get these from field data
+          # cut crop - 1:yes, 2:no
+          if("frg" %in% tolower(harvest_sub$harvest_crop) | "wcl" %in% tolower(harvest_sub$harvest_crop)){
+            harvest_tec$codefauche <- 1
+          }else{
+            harvest_tec$codefauche <- 2 
+          }
+          #harvest_tec$mscoupemini <- 0 # min val of aerial biomass to make a cut
+          harvest_tec$codemodfauche <- 2 # use calendar days
+          harvest_tec$hautcoupedefaut <- 0.05 # cut height for forage crops (calendar calculated)
+          harvest_tec$stadecoupedf <- "rec"
+          
+          
+        } #harvest-if end
+        
+        if("organic_material" %in% events_sub$mgmt_operations_event |
+           "fertilizer" %in% events_sub$mgmt_operations_event){
+          # param names
+          f_param_names <- c("julapN", # date of fertilization, julian.d
+                             "absolute_value/%")   # cut height for forage crops, m
+          
+          
+          fert_sub <- events_sub[events_sub$mgmt_operations_event %in% c("organic_material", "fertilizer"),]
+          
+          fert_list <- list()
+          for(frow in seq_len(nrow(fert_sub))){
+            
+            # empty
+            fert_df <- data.frame(jul = NA, val = NA) 
+  
+            # If given fertilization date is within simulation days
+            if(as.Date(fert_sub$date[frow]) %in% dseq_sub){
+              
+              fert_df$jul   <- which(dseq_sub == as.Date(fert_sub$date[frow])) + lubridate::yday(dseq_sub[1]) - 1
+              
+              if(fert_sub$mgmt_operations_event[frow] == "organic_material"){
+                Nprcnt <- ifelse(as.numeric(fert_sub$organic_material_N_conc[frow]) < 0, 5, as.numeric(fert_sub$organic_material_N_conc[frow]))
+                fert_df$val <- as.numeric(fert_sub$org_material_applic_amnt[frow]) * (Nprcnt/100)
+              }else{
+                fert_df$val <- as.numeric(fert_sub$N_in_applied_fertilizer[frow])
+              }
+              
+            }
+            
+            colnames(fert_df) <- paste0(f_param_names, "_", frow)
+            fert_list[[frow]] <- fert_df
+          }
+          fert_tec <- do.call("cbind", fert_list) 
+        } #fertilizer-if end
+          
+          
+          # DO NOTHING ELSE FOR NOW
+          # TODO: ADD OTHER MANAGEMENT
+          
+          # same usm -> continue columns
+          usm_tec_df <- cbind(tec_df, harvest_tec, fert_tec)
+          
+          usm_tec_df$ratiol <- 0
+          
+          
+          # TODO: more than 1 USM, rbind
+          
+          # SticsRFiles::convert_xml2txt(file = file.path(rundir, paste0(basename(usmdirs[usmi]), "_tec.xml"))
+          
+        
+       } # end-loop over usms
+      } # TODO: if no events file is given modify other harvest parameters, e.g. harvest decision
+    
+    all_tec_df <- rbind(all_tec_df, usm_tec_df)
+  }
+  
+  SticsRFiles::gen_tec_xml(param_df = all_tec_df,
+                           file=system.file("pecan_tec.xml", package = "PEcAn.STICS"),
+                           out_dir = rundir)
   
   ################################ Prepare Climate file ######################################
   met_path <- settings$run$inputs$met$path
