@@ -1298,10 +1298,10 @@ pecan2stics <- function(trait.values){
   trait.values <- lapply(trait.values, function(x){
     canconvert <- toconvert[toconvert %in% names(x)]      
     if(length(canconvert) != 0){
-      for(c in seq_along(canconvert)){
-        x[,names(x) == canconvert[c]] <- PEcAn.utils::ud_convert(x[,names(x) == canconvert[c]], 
-                                                                 vartable$pecanunits[vartable$sticsname == canconvert[c]], 
-                                                                 vartable$sticsunits[vartable$sticsname == canconvert[c]])
+      for(noc in seq_along(canconvert)){
+        x[,names(x) == canconvert[noc]] <- PEcAn.utils::ud_convert(x[,names(x) == canconvert[noc]], 
+                                                                 vartable$pecanunits[vartable$sticsname == canconvert[noc]], 
+                                                                 vartable$sticsunits[vartable$sticsname == canconvert[noc]])
       }
     }
     return(x)
