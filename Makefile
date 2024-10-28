@@ -46,7 +46,7 @@ ALL_PKGS_D := $(BASE_D) $(MODULES_D) $(MODELS_D)
 
 SETROPTIONS := "options(Ncpus = ${NCPUS})"
 
-EXPECTED_ROXYGEN_VERSION := 7.2.3
+EXPECTED_ROXYGEN_VERSION := 7.3.2
 INSTALLED_ROXYGEN_VERSION := $(shell Rscript \
 	-e "if (requireNamespace('roxygen2', quietly = TRUE)) {" \
 	-e   "cat(as.character(packageVersion('roxygen2')))" \
@@ -132,12 +132,6 @@ $(subst .doc/models/template,,$(MODELS_D)): .install/models/template
 ### Order-only dependencies
 # (i.e. prerequisites must exist before building target, but
 # target need not be rebuilt when a prerequisite changes)
-
-.doc/base/all: | $(ALL_PKGS_D)
-.install/base/all: | $(ALL_PKGS_I)
-.check/base/all: | $(ALL_PKGS_C)
-.test/base/all: | $(ALL_PKGS_T)
-
 include Makefile.depends
 
 clean:
@@ -152,11 +146,11 @@ clean:
 .install/roxygen2: | .install .install/devtools
 	+ ./scripts/time.sh "roxygen2 ${1}" Rscript -e ${SETROPTIONS} \
 		-e "if (!requireNamespace('roxygen2', quietly = TRUE)" \
-		-e "    || packageVersion('roxygen2') != '7.2.3') {" \
+		-e "    || packageVersion('roxygen2') != '"${EXPECTED_ROXYGEN_VERSION}"') {" \
 		-e "  cran <- c(getOption('repos'), 'cloud.r-project.org')" \
-		-e "  remotes::install_version('roxygen2', '7.2.3', repos = cran, upgrade = FALSE)" \
+		-e "  remotes::install_version('roxygen2', '"${EXPECTED_ROXYGEN_VERSION}"', repos = cran, upgrade = FALSE)" \
 		-e "}"
-	$(eval INSTALLED_ROXYGEN_VERSION := 7.2.3)
+	$(eval INSTALLED_ROXYGEN_VERSION := ${EXPECTED_ROXYGEN_VERSION})
 	echo `date` > $@
 
 .install/testthat: | .install

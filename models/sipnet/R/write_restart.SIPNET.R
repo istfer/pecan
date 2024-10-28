@@ -1,14 +1,8 @@
-#-------------------------------------------------------------------------------
-# Copyright (c) 2012 University of Illinois, NCSA.
-# All rights reserved. This program and the accompanying materials
-# are made available under the terms of the
-# University of Illinois/NCSA Open Source License
-# which accompanies this distribution, and is available at
-# http://opensource.ncsa.illinois.edu/license.html
-#-------------------------------------------------------------------------------
-
-##' @title write_restart.SIPNET
-##' @name  write_restart.SIPNET
+##' write_restart.SIPNET
+##'
+##' Write restart files for SIPNET.
+##' WARNING: Some variables produce illegal values < 0 and have been hardcoded to correct these values!!
+##'
 ##' @author Ann Raiho \email{araiho@@nd.edu}
 ##'
 ##' @param outdir output directory
@@ -21,14 +15,14 @@
 ##' @param new.params list of parameters to convert between different states 
 ##' @param inputs list of model inputs to use in write.configs.SIPNET
 ##' @param verbose decide if we want to print the outputs.
-##'
-##' @description Write restart files for SIPNET. WARNING: Some variables produce illegal values < 0 and have been hardcoded to correct these values!!
 ##' 
 ##' @return NONE
+##'
+##' @importFrom dplyr %>%
 ##' @export
 write_restart.SIPNET <- function(outdir, runid, start.time, stop.time, settings, new.state,
                                  RENAME = TRUE, new.params = FALSE, inputs, verbose = FALSE) {
-  
+
   rundir <- settings$host$rundir
   variables <- colnames(new.state)
   # values that will be used for updating other states deterministically depending on the SDA states
@@ -59,7 +53,7 @@ write_restart.SIPNET <- function(outdir, runid, start.time, stop.time, settings,
     analysis.save[[length(analysis.save) + 1]] <- PEcAn.utils::ud_convert(new.state$NPP, "kg/m^2/s", "Mg/ha/yr")  #*unit.conv -> Mg/ha/yr
     names(analysis.save[[length(analysis.save)]]) <- c("NPP")
   }
-  
+
   if ("NEE" %in% variables) {
     analysis.save[[length(analysis.save) + 1]] <- new.state$NEE
     names(analysis.save[[length(analysis.save)]]) <- c("NEE")
@@ -67,7 +61,7 @@ write_restart.SIPNET <- function(outdir, runid, start.time, stop.time, settings,
   
   if ("AbvGrndWood" %in% variables) {
     AbvGrndWood <- PEcAn.utils::ud_convert(new.state$AbvGrndWood,  "Mg/ha", "g/m^2")
-    analysis.save[[length(analysis.save) + 1]] <- AbvGrndWood 	  
+    analysis.save[[length(analysis.save) + 1]] <- AbvGrndWood
     names(analysis.save[[length(analysis.save)]]) <- c("AbvGrndWood")
   }
   
@@ -106,7 +100,7 @@ write_restart.SIPNET <- function(outdir, runid, start.time, stop.time, settings,
     if (analysis.save[[length(analysis.save)]] < 0) analysis.save[[length(analysis.save)]] <- 0
     names(analysis.save[[length(analysis.save)]]) <- c("SWE")
   }
-  
+
   if ("LAI" %in% variables) {
     analysis.save[[length(analysis.save) + 1]] <- new.state$LAI  
     if (new.state$LAI < 0) analysis.save[[length(analysis.save)]] <- 0
@@ -120,7 +114,7 @@ write_restart.SIPNET <- function(outdir, runid, start.time, stop.time, settings,
   }else{
     analysis.save.mat <- NULL
   }
-  
+
   if (verbose) {
     print(runid %>% as.character())
     print(analysis.save.mat)
