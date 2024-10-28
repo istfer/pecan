@@ -177,7 +177,6 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     
     plant_file <- file.path(rundir, "plant", paste0(names(trait.values)[pft], "_plt.xml"))
     
-    
     if(names(trait.values)[pft] != "env"){
       # save the template, will be overwritten below
       XML::saveXML(plt_xml, file = plant_file)
@@ -193,15 +192,8 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     plt_files[[pft]] <- plant_file
     
     # to learn the parameters in a plant file
-    # SticsRFiles::get_param_info(file_path = plant_file)
+    # SticsRFiles::get_param_info()
     
-    # go over each formalism and replace params following the order in crop_plt
-    # TODO: vary more params
-    
-    # plant name and group
-    # effect of atmospheric CO2 concentration
-    
-    # phasic development
     # to see parameters per formalism
     # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "phasic development")
     # unlist(values)
@@ -213,7 +205,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # name code of plant in 3 letters
     # a handful of plants have to have specific codes, e.g. forages need to be 'fou' and vine needs to be 'vig'
     # but others can be anything? if not, either consider a LUT or passing via settings
-    if(names(trait.values)[pft] %in% c("frg", "wcl", "alf")){
+    if(names(trait.values)[pft] %in% c("frg", "wcl", "alf", "frg1", "frg2")){ # frg1/2 hack temporary
       plt_df$codeplante <- "fou"
       plt_df$codeperenne <- 2
     }else{
@@ -318,10 +310,12 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
       # do I also need to move the file out of the plant folder to main rundir?
     }
     
-    # this_usm <- grep(names(trait.values)[pft], usmdirs)
-    # sapply(this_usm, function(x){
-    #   file.copy(file.path(rundir, "ficplt1.txt"), file.path(usmdirs[x], "ficplt1.txt"), overwrite = TRUE)
-    # })
+    this_usm <- grep(names(trait.values)[pft], usmdirs)
+    # hack for now
+    if(length(this_usm) == 0) this_usm <- pft
+    sapply(this_usm, function(x){
+      file.copy(file.path(rundir, "plant", "ficplt1.txt"), file.path(usmdirs[x], "ficplt1.txt"), overwrite = TRUE)
+    })
     
   } # pft-loop ends
   
@@ -332,7 +326,12 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   ## these also have plant parameters as well as soil 
   ## at the moment everything is treated as params, but some could be IC or come from the events file
   
-  # these parameters won't change as crop changes in a continous rotation
+  # these parameters won't change as crop changes in a continuous rotation
+  # Convert pecan parameters to stics names for soil
+  # prepare for pecan2stics call
+  soil_params_list <- list()
+  soil_params_list[[1]] <- soil_params
+  soil_params <- pecan2stics(soil_params_list)
   soil.names <- names(soil_params)
   
   for (pft in seq_along(trait.values)) {
@@ -1182,9 +1181,13 @@ pecan2stics <- function(trait.values){
     "extin", "extinction_coefficient_diffuse", NA, NA, 
     "fhminsat", "fhminsat", NA, NA, 
     "FINERT", "FINERT", NA, NA, 
-    "FMIN1", "FMIN1", NA, NA, 
-    "FMIN2", "FMIN2", NA, NA, 
-    "FMIN3", "FMIN3", NA, NA, 
+    "GMIN1", "GMIN1", NA, NA, 
+    "GMIN2", "GMIN2", NA, NA, 
+    "GMIN3", "GMIN3", NA, NA, 
+    "GMIN4", "GMIN4", NA, NA, 
+    "GMIN5", "GMIN5", NA, NA, 
+    "GMIN6", "GMIN6", NA, NA, 
+    "GMIN7", "GMIN7", NA, NA, 
     "fNCbiomin", "fNCbiomin", NA, NA, 
     "fredkN",	"Nlim_reductionOMdecomp", NA, NA, 
     "fredlN",	"Nlim_reductionMBdecomp", NA, NA, 
