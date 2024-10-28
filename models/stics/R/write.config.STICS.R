@@ -168,14 +168,14 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   trait.values <- pecan2stics(trait.values)
   # read in template plt file, has all the formalisms
   plt_xml  <- XML::xmlParse(system.file("crop_plt.xml", package = "PEcAn.STICS"))
-  #plt_list <- XML::xmlToList(plt_xml)
+
   plt_files <- list()
   for (pft in seq_along(trait.values)) {
     
     pft.traits <- unlist(trait.values[[pft]])
     pft.names  <- names(pft.traits)
     
-    plant_file <- file.path(rundir, "plant", paste0(names(trait.values)[pft], "_plt.xml"))
+    plant_file <- file.path(rundir, paste0(names(trait.values)[pft], "_plt.xml"))
     
     if(names(trait.values)[pft] != "env"){
       # save the template, will be overwritten below
@@ -199,7 +199,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # unlist(values)
     
     # Creating a dataframe of parameter names and their values for feeding into SticsRFiles::set_param_xml.
-    # Note that the parameters in the data frame are either hardcoded for now or otherwise require special treatment.
+    # Note that the parameters in this data frame are either hardcoded for now or otherwise require special treatment.
     plt_df <- data.frame(codebfroid = 2) # vernalization requirement, hardcoding for now, 2==yes. 
     
     # name code of plant in 3 letters
@@ -220,18 +220,10 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # codegermin, option of simulation of a germination phase or a delay at the beginning of the crop (1) or direct starting (2)
     plt_df$codegermin <- 1
     
-    # skipping the other parameters related to this switch, they don't seem influential, at least on NPP and LAI
+    # skipping the other parameters related to this switch for now
     # potgermi: soil water potential under which seed imbibition is impeded
     # nbjgerlim: maximum number of days after grain imbibition allowing full germination
     # propjgermin: minimal proportion of the duration nbjgerlim when the temperature is higher than the temperature threshold Tdmax
-    # 
-    # plant vigor index allowing to emerge through a soil crust, vigueurbat == 1 inactivates some soil crust related parameters, skipping for now
-    
-    # there are also "planting" related parameters
-    
-    # leaves
-    # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "leaves")
-    # unlist(values)
     
     # temperature beyond which foliar growth stops
     if ("tcxstop" %in% pft.names | "tdmax" %in% pft.names) {
@@ -252,46 +244,9 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
       }
       # TODO: Do we force one of these to change or let the simulation fail?
     }
-    
-    
-    # shoot biomass growth
-    # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "shoot biomass growth")
-    
-    
-    # partitioning of biomass in organs
-    # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "partitioning of biomass in organs")
-    
-    # skipping: envfruit, fraction of envelop in grainmaxi (w:w)
-    # skipping: sea, specific area of fruit envelops
-    
-    # yield formation, will get back
-    
-    # roots
-    # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "roots")
-  
-    
-    # sensanox, index of anoxia sensitivity (0 = insensitive), 0 for now
-    # stoprac, stage when root growth stops (LAX= maximum leaf area index, end of leaf growth or SEN=beginning of leaf senescence)
-    
 
     # option to activate the N influence on root partitioning within the soil profile (1 = yes, 2 = no)
     plt_df$codazorac <- 1
-    
-
-    # frost
-    
-    # formalism - water
-    
-    # skipping:
-    # h2ofeuiljaune
-    # h2otigestruc
-    # h2otigestruc
-    # h2ofrvert
-    # deshydbase
-    # tempdeshyd
-    
-    
-    # correspondance code BBCH
     
     # cultivar parameters
     # values = SticsRFiles::get_param_xml(plant_file, select = "formalisme", select_value = "cultivar parameters")
@@ -300,7 +255,6 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # for now I assume we will always use only #1 in simulations 
     # hence, _tec file will always say variete==1, if you change the logic don't forget to update handling of the _tec file accordingly
     # by default set_param_xml modifies the given parameter in all cultivars.
-   
 
     # Set the parameters that have been added to plt_df in the plant file.
     SticsRFiles::set_param_xml(plant_file, names(plt_df), plt_df[1, ], overwrite = TRUE)
@@ -311,10 +265,10 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     }
     
     this_usm <- grep(names(trait.values)[pft], usmdirs)
-    # hack for now
+    # hack for now:
     if(length(this_usm) == 0) this_usm <- pft
     sapply(this_usm, function(x){
-      file.copy(file.path(rundir, "plant", "ficplt1.txt"), file.path(usmdirs[x], "ficplt1.txt"), overwrite = TRUE)
+      file.copy(file.path(rundir, "ficplt1.txt"), file.path(usmdirs[x], "ficplt1.txt"), overwrite = TRUE)
     })
     
   } # pft-loop ends
