@@ -967,7 +967,7 @@ pecan2stics <- function(trait.values){
     "dacohes", "bd_rootgrowth_reduced", NA, NA, 
     "daseuilbas",	"bd_rootgrowth_maximal", NA, NA, 
     "daseuilhaut", "bd_rootgrowth_impossible", NA, NA, 
-    "debsenrac", "root_sen_dday", NA, NA, 
+    "debsenrac", "root_sen_dday", "round", "0", 
     "difN",	"difN_FC", NA, NA, 
     "diftherm",	"soil_thermal_diffusivity", NA, NA, 
     "dlaimaxbrut", "lai_max_rate", NA, NA, 
@@ -982,13 +982,9 @@ pecan2stics <- function(trait.values){
     "extin", "extinction_coefficient_diffuse", NA, NA, 
     "fhminsat", "fhminsat", NA, NA, 
     "FINERT", "FINERT", NA, NA, 
-    "GMIN1", "GMIN1", NA, NA, 
-    "GMIN2", "GMIN2", NA, NA, 
-    "GMIN3", "GMIN3", NA, NA, 
-    "GMIN4", "GMIN4", NA, NA, 
-    "GMIN5", "GMIN5", NA, NA, 
-    "GMIN6", "GMIN6", NA, NA, 
-    "GMIN7", "GMIN7", NA, NA, 
+    "FMIN1", "FMIN1", NA, NA, 
+    "FMIN2", "FMIN2", NA, NA, 
+    "FMIN3", "FMIN3", NA, NA, 
     "fNCbiomin", "fNCbiomin", NA, NA, 
     "fredkN",	"Nlim_reductionOMdecomp", NA, NA, 
     "fredlN",	"Nlim_reductionMBdecomp", NA, NA, 
@@ -1005,8 +1001,8 @@ pecan2stics <- function(trait.values){
     "INNmin", "INNmin", NA, NA, 
     "innsen", "innsen", NA, NA, 
     "innturgmin", "innturgmin", NA, NA, 
-    "julvernal", "vernalization_init", NA, NA, 
-    "jvcmini", "vernalization_days_min", NA, NA, 
+    "julvernal", "vernalization_init", "round", "0", 
+    "jvcmini", "vernalization_days_min", "round", "0", 
     "kbio",	"microbialbiomass_decay", NA, NA, 
     "khaut", "LAI2height", NA, NA, 
     "Kmabs1", "Kmabs1", NA, NA, 
@@ -1019,8 +1015,8 @@ pecan2stics <- function(trait.values){
     "maxazorac", "maxazorac", NA, NA, 
     "minazorac", "minazorac", NA, NA, 
     "minefnra", "minefnra", NA, NA, 
-    "nlevlim1",	"days2reduced_emergence_postgerm", NA, NA, 
-    "nlevlim2",	"days2stopped_emergence_postgerm", NA, NA, 
+    "nlevlim1",	"days2reduced_emergence_postgerm", "round", "0", 
+    "nlevlim2",	"days2stopped_emergence_postgerm", "round", "0", 
     "Nmeta", "Nmeta", NA, NA, 
     "Nreserve", "Nreserve", NA, NA, 
     "parazofmorte", "parazofmorte", NA, NA, 
@@ -1075,12 +1071,19 @@ pecan2stics <- function(trait.values){
     "Vabs2", "Nupt_fertloss_halve", NA, NA, 
     "vlaimax", "vlaimax", NA, NA, 
     "Wh", "Wh", NA, NA, 
+    "GMIN1", "GMIN1", NA, NA, 
+    "GMIN2", "GMIN2", NA, NA, 
+    "GMIN3", "GMIN3", NA, NA, 
+    "GMIN4", "GMIN4", NA, NA, 
+    "GMIN5", "GMIN5", NA, NA, 
+    "GMIN6", "GMIN6", NA, NA, 
+    "GMIN7", "GMIN7", NA, NA, 
     "Xorgmax", "maxNimm_mineralfert", NA, NA, 
     "y0msrac", "rootmin_harvest", NA, NA, 
     "yres", "microbialbiomass_C_yield", NA, NA,
     # Missing pecan parameters without corresponding STICS parameters
     "SLA", "SLA", NA, NA, # This is necessary as any parameters in the prior that are missing from this tibble cause an error.
-    )
+  )
   
   trait.values <- lapply(trait.values, function(x){
     names(x) <- vartable$sticsname[match(names(x), vartable$pecanname)]
@@ -1093,9 +1096,14 @@ pecan2stics <- function(trait.values){
     canconvert <- toconvert[toconvert %in% names(x)]      
     if(length(canconvert) != 0){
       for(noc in seq_along(canconvert)){
-        x[,names(x) == canconvert[noc]] <- PEcAn.utils::ud_convert(x[,names(x) == canconvert[noc]], 
-                                                                 vartable$pecanunits[vartable$sticsname == canconvert[noc]], 
-                                                                 vartable$sticsunits[vartable$sticsname == canconvert[noc]])
+        if(vartable$sticsunits[vartable$sticsname == canconvert[noc]] == "round"){
+          x[,names(x) == canconvert[noc]] <- round(x[,names(x) == canconvert[noc]])
+        }else{
+          x[,names(x) == canconvert[noc]] <- PEcAn.utils::ud_convert(x[,names(x) == canconvert[noc]], 
+                                                                     vartable$pecanunits[vartable$sticsname == canconvert[noc]], 
+                                                                     vartable$sticsunits[vartable$sticsname == canconvert[noc]])
+        }
+        
       }
     }
     return(x)
