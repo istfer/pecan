@@ -281,11 +281,12 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   ## at the moment everything is treated as params, but some could be IC or come from the events file
   
   # these parameters won't change as crop changes in a continuous rotation
+  
   # Convert pecan parameters to stics names for soil
-  # prepare for pecan2stics call
+  # prepare for pecan2stics call, expects a list
   soil_params_list <- list()
   soil_params_list[[1]] <- soil_params
-  soil_params <- pecan2stics(soil_params_list)
+  soil_params <- pecan2stics(soil_params_list)[[1]]
   soil.names <- names(soil_params)
   
   for (pft in seq_along(trait.values)) {
@@ -306,7 +307,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
 
 
     # Creating a dataframe of parameter names and their values for feeding into SticsRFiles::set_param_xml.
-    # Note that the parameters in the data frame are either hardcoded for now or otherwise require special treatment.
+    # Note that the parameters in this data frame are either hardcoded for now or otherwise require special treatment.
     gen_df <- data.frame(codeinitprec = ifelse(length(usmdirs>1), 1, 2)) # reset initial conditions in chained simulations
     
     pft.traits <- unlist(trait.values[[pft]])
@@ -317,140 +318,26 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     if (!is.null(pft.traits)) {
       SticsRFiles::set_param_xml(gen_file, param = names(pft.traits), values = as.list(unname(pft.traits)), overwrite = TRUE)
     }
-    
-    
-    ### Shoot growth
-    
-    ### Root growth
-    
-    ### Water absorption and nitrogen content of the plant
-    
-    # skipping
-    # concrr: inorganic N concentration (NH4+NO3-N) in the rain
-
-    # skipping, irrlev:
-    # amount of irrigation applied automatically on the sowing day to allow germination when the model calculates automaticaly 
-    # the amount of irrigations or when the irrigation dates are calculated by sum of temperature
-    
-    ### Soil C and N processes and fertiliser losses
-
-    # TODO: come back to these
-    # # not used anymore, or at least not with this name!!!
-    # # relative potential mineralization rate: K2 = fmin1 * exp(- fmin2*argi) / (1+fmin3*calc)
-    # if ("FMIN1" %in% soil.names) {
-    #   SticsRFiles::set_param_xml(gen_file, "FMIN1", soil_params[which(soil.names == "FMIN1")], overwrite = TRUE)
-    # }
-    # 
-    # # not used anymore, or at least not with this name!!!
-    # # parameter defining the effect of clay on the potential mineralization rate: K2 = fmin1 * exp(-fmin2*argi) / (1+fmin3*calc)
-    # if ("FMIN2" %in% soil.names) {
-    #   SticsRFiles::set_param_xml(gen_file, "FMIN2", soil_params[which(soil.names == "FMIN2")], overwrite = TRUE)
-    # }
-    # 
-    # # not used anymore, or at least not with this name!!!
-    # # parameter defining the effect of CaCO3 on the potential mineralization rate: K2 = fmin1 * exp(-fmin2*argi) / (1+fmin3*calc)
-    # if ("FMIN3" %in% soil.names) {
-    #   SticsRFiles::set_param_xml(gen_file, "FMIN3", soil_params[which(soil.names == "FMIN3")], overwrite = TRUE)
-    # }
-
-    # skipping, alphaph:
-    # maximal soil pH variation per unit of inorganic N added with slurry
-      
-    # skipping, dphvolmax:
-    # maximal pH increase following the application of slurry
-    
-    # skipping, phvols:
-    # parameter used to calculate the variation of soil pH after the addition of slurry
-
-    ### Nitrification, denitrification and associated N2O emissions
-    ### TODO: modify these params
-    
-    ### Soil hydrology and compaction
-
-    # skipping, bformnappe:
-    # coefficient for the water table shape (artificially drained soil)
-
-    ### skipping
-    ### Soil tillage if soil compaction activated
-    
-    ### Typology of pebbles fertilisers and residues
-    ### should some of these parameters come from event files?
-    
-    ### codetypeng: Types of mineral fertilisers - 1 atm
-    # 1: Ammonium.nitrate
-    # 2: Urea.Ammonium.Nitrate.solution
-    # 3: Urea
-    # 4: Anhydrous.ammonia
-    # 5: Ammonium.sulphate
-    # 6: Ammonium.phosphate
-    # 7: Calcium.nitrate
-    # 8: Fixed.efficiency
-    
-    # each option has 4 params
-    # engamm: fraction of ammonium in the N fertilizer
-    # orgeng: maximal amount of fertilizer N that can be immobilized in the soil (fraction for type 8)
-    # deneng: maximal fraction of the mineral fertilizer that can be denitrified (used if codedenit is not activated)
-    # voleng: maximal fraction of mineral fertilizer that can be volatilized
-      
-    ### codetypres: Type of residues for decomposition parameters - 21 atm
-    # 1:  Main crop on surface
-    # 2:  Intermediate crop on surface
-    # 3:  Manure on surface
-    # 4:  Green compost on surface
-    # 5:  Sewage sludge on surface
-    # 6:  Vinasse on surface
-    # 7:  Horn on surface
-    # 8:  Grapevine shoots on surface
-    # 9:  Others.1 on surface
-    # 10: Others.2 on surface
-    # 11: Main crop ploughed in
-    # 12: Intermediate crop ploughed in
-    # 13: Manure ploughed in
-    # 14: Green compost ploughed in
-    # 15: Sewage sludge ploughed in
-    # 16: Vinasse ploughed in
-    # 17: Cattle horn ploughed in
-    # 18: Grapevine shoots ploughed in
-    # 19: Others.1 ploughed in
-    # 20: Others.2 ploughed in
-    # 21: Dead roots in soil
-    
-    # each option has 17 params
-
-    # TODO: we need a soil PFT
-
-    # skipping, qmulchruis0:
-    # amount of mulch above which runoff is suppressed
-    
-    # skipping, mouillabilmulch:
-    # maximum wettability of crop mulch
- 
-    # skipping, kcouvmlch:
-    # extinction coefficient connecting the soil cover to the amount of plant mulch
-    
-    # skipping, albedomulchresidus:
-    # albedo of crop mulch
-    
-    # skipping, Qmulchdec:
-    # maximal amount of decomposable mulch
       
     # Set the parameters that have been added to gen_df in the param_gen file.
     SticsRFiles::set_param_xml(gen_file, names(gen_df), gen_df[1, ], overwrite = TRUE)
-    # 
-    # SticsRFiles::convert_xml2txt(file = gen_file)
-    # 
-    # this_usm <- grep(names(trait.values)[pft], usmdirs)
-    # sapply(this_usm, function(x){
-    #   file.copy(file.path(rundir, "tempopar.sti"), file.path(usmdirs[x], "tempopar.sti"), overwrite = TRUE)
-    # })
-    # 
-    # ### new formulations 
-    # # DO NOTHING ELSE FOR NOW
-    # 
-    # SticsRFiles::convert_xml2txt(file = newf_file)
-    # sapply(this_usm, function(x){
-    #   file.copy(file.path(rundir, "tempoparv6.sti"), file.path(usmdirs[x], "tempoparv6.sti"), overwrite = TRUE)
-    # })
+
+    SticsRFiles::convert_xml2txt(file = gen_file)
+
+    this_usm <- grep(names(trait.values)[pft], usmdirs)
+    # hack for now:
+    if(length(this_usm) == 0) this_usm <- pft
+    sapply(this_usm, function(x){
+      file.copy(file.path(rundir, "tempopar.sti"), file.path(usmdirs[x], "tempopar.sti"), overwrite = TRUE)
+    })
+
+    ### new formulations
+    # DO NOTHING ELSE FOR NOW
+
+    SticsRFiles::convert_xml2txt(file = newf_file)
+    sapply(this_usm, function(x){
+      file.copy(file.path(rundir, "tempoparv6.sti"), file.path(usmdirs[x], "tempoparv6.sti"), overwrite = TRUE)
+    })
   }
   
   
