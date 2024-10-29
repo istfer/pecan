@@ -718,6 +718,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
   } # TODO: if no events file is given modify other harvest parameters, e.g. harvest decision
   
   ################################ Prepare Climate file ######################################
+  # symlink climate files
   met_path <- settings$run$inputs$met$path
   
   for(usmi in seq_along(usmdirs)){
@@ -732,140 +733,116 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
       clim_list[[clim]] <- utils::read.table(met_file)
     }
     clim_run <- do.call("rbind", clim_list)
-    # utils::write.table(clim_run, file.path(usmdirs[usmi], "climat.txt"), col.names = FALSE, row.names = FALSE)
-    utils::write.table(clim_run, file.path(rundir, paste0(str_ns, ".", usm_years[1])), col.names = FALSE, row.names = FALSE) # This is hardcoded to one climate file per usm right now.
+    utils::write.table(clim_run, file.path(usmdirs[usmi], "climat.txt"), col.names = FALSE, row.names = FALSE)
     
   }
   
   
   ################################ Prepare USM file ######################################
-
+  
   # loop for each USM
   #ncodesuite <- ifelse(length(usmdirs) > 1, 1,0)
-  all_usm_df <- data.frame()
+  
   for(usmi in seq_along(usmdirs)){
     
     #usm_years <- years_requested[(usmi*2-1):(usmi*2)]
     usm_years <- c(sapply(strsplit(sub(".*_", "", basename(usmdirs[usmi])), "-"), function(x) (as.numeric(x))))
     dseq_sub <- dseq[lubridate::year(dseq) %in% usm_years]
     
+    # read in template USM (Unit of SiMulation) file, has the master settings, file names etc.
+    usm_file <- file.path(usmdirs[usmi], "new_travail.usm")
     
-    usm_df <- data.frame(usm_name = basename(usmdirs[usmi]))
+    # cp template usm file 
+    file.copy(system.file("template.usm", package = "PEcAn.STICS"), usm_file)
     
     # Type of LAI simulation 
     # 0 = culture (LAI calculated by the model), 1 = feuille (LAI forced)
-    usm_df$codesimul <- 0
+    SticsRFiles::set_usm_txt(usm_file, "codesimul", "culture", append = FALSE) # hardcode for now
     
-    
-
-    # number of simulated plants (sole crop=1; intercropping=2)
-    usm_df$nbplantes <- 1 # hardcode for now
-    
-    ## handle dates, also for partial year(s)
-    ## needs developing with longer runs
-    if(usmi == 1){
-      # beginning day of the simulation (julian.d)
-      # end day of the simulation (julian.d) (at the end of consecutive years, i.e. can be greater than 366)
-      usm_df$datedebut <- lubridate::yday(settings$run$start.date)
-      usm_df$datefin <- (lubridate::yday(settings$run$start.date) + length(dseq_sub) - 1)
-    }else{
-      usm_df$datedebut <- 1 # for now!
-      usm_df$datefin <- length(dseq_sub)
-    }
-    
-    # name of the initialization file
-    usm_df$finit <- paste0(basename(usmdirs[usmi]), "_ini.xml")
-    
-    
-    # name of the soil in the sols.xml file
-    usm_df$nomsol <- paste0("sol", str_ns)
-    
-    # name of the weather station file
-    usm_df$fstation <- paste0(str_ns, "_sta.xml")
-    
-    # name of the first climate file
-    usm_df$fclim1 <- paste0(str_ns, ".", usm_years[1])
-    
-    # name of the last climate file
-    if(length(usm_years) == 2){
-      usm_df$fclim2 <- paste0(str_ns, ".", usm_years[2])
-    }else{
-      # repeat same year
-      usm_df$fclim2 <- paste0(str_ns, ".", usm_years[1])
-    }
-    
-    
-    
-    # number of calendar years involved in the crop cycle
-    # 1 = 1 year e.g. for spring crops, 0 = two years, e.g. for winter crops
-    culturean <- ifelse( length(unique(usm_years)) == 2, 0, 1)
-    usm_df$culturean <- culturean #hardcoding this for now, if passed as a trait from priors it breaks sensitivity analysis
-    # probably best to pass this via the json file
-    
-    # name of the plant file for main plant 
-    if(length(plt_files) < usmi){
-      # multiple usms, 1 plt file = same spp, consecutive rotations, but hacky
-      usm_df$fplt_1 <- basename(plt_files[[1]])
-    }else{
-      usm_df$fplt_1 <- basename(plt_files[[usmi]])
-    }
-    
-    # name of the technical file for main plant
-    usm_df$ftec_1 <- paste0(basename(usmdirs[usmi]), "_tec.xml")
-    
-    # name of the LAI forcing file for main plant (null if none)
-    usm_df$flai_1 <- "null" # hardcode for now, doesn't matter when codesimul==0
-    
-    # Secondary plant details, currently hardcoding to null
-    # name of the plant file for secondary plant 
-    usm_df$fplt_2 <- "null"
-    
-    # name of the technical file for secondary plant
-    usm_df$ftec_2 <- "null"
-    
-    # name of the LAI forcing file for secondary plant (null if none)
-    usm_df$flai_2 <- "null" # hardcode for now, doesn't matter when codesimul==0
-    
-    all_usm_df <- rbind(all_usm_df, usm_df)
-  }
-  
-  
-  # Write out the usm file based on the template file.
-  SticsRFiles::gen_usms_xml(file = file.path(rundir, "usms.xml"),
-                            param_df = all_usm_df,
-                            template = system.file("usms.xml", package = "PEcAn.STICS"))
-  # Generate individual run folders for each usm.
-  SticsRFiles::gen_usms_xml2txt(workspace = rundir, verbose = TRUE)
-  
-  
-  # Some options only appear in the txt file new_travail.usm and not in the usms.xml file. Setting them below just in case they are necessary.
-  # Not sure if this is necessary.
-  for(usmi in seq_along(usmdirs)){
-    usm_file <- file.path(usmdirs[usmi], "new_travail.usm")
     # use optimization
     # 0 = no;  1 = yes main plant; 2 = yes associated plant
-    SticsRFiles::set_usm_txt(usm_file, "codoptim", 0, append = FALSE) 
+    SticsRFiles::set_usm_txt(usm_file, "codeoptim", 0, append = FALSE) 
     
     # option to simulate several
     # successive USM (0 = no, 1 = yes)
-    # Currently this sets up successive usms for the second (and later) usms in our list. 
     if(usmi == 1){
       SticsRFiles::set_usm_txt(usm_file, "codesuite", 0, append = FALSE)
     }else{
       SticsRFiles::set_usm_txt(usm_file, "codesuite", 1, append = FALSE)
     }
     
+    
+    # number of simulated plants (sole crop=1; intercropping=2)
+    SticsRFiles::set_usm_txt(usm_file, "nbplantes", 1, append = FALSE) # hardcode for now
+    
+    # pft name
+    SticsRFiles::set_usm_txt(usm_file, "nom", basename(usmdirs[usmi]), append = FALSE)
+    
+    
+    ## handle dates, also for partial year(s)
+    ## needs developing with longer runs
+    if(usmi == 1){
+      # beginning day of the simulation (julian.d)
+      # end day of the simulation (julian.d) (at the end of consecutive years, i.e. can be greater than 366)
+      SticsRFiles::set_usm_txt(usm_file, "datedebut", lubridate::yday(settings$run$start.date), append = FALSE)
+      SticsRFiles::set_usm_txt(usm_file, "datefin", (lubridate::yday(settings$run$start.date) + length(dseq_sub) - 1), append = FALSE)
+    }else{
+      SticsRFiles::set_usm_txt(usm_file, "datedebut", 1, append = FALSE) # for now!
+      SticsRFiles::set_usm_txt(usm_file, "datefin", length(dseq_sub), append = FALSE)
+    }
+    
+    # name of the initialization file
+    SticsRFiles::set_usm_txt(usm_file, "finit", paste0(basename(usmdirs[usmi]), "_ini.xml"), append = FALSE)
+    
     # soil number
     SticsRFiles::set_usm_txt(usm_file, "numsol", 1, append = FALSE)
+    
+    # name of the soil in the sols.xml file
+    SticsRFiles::set_usm_txt(usm_file, "nomsol", paste0("sol", str_ns), append = FALSE)
+    
+    # name of the weather station file
+    SticsRFiles::set_usm_txt(usm_file, "fstation", paste0(str_ns, "_sta.xml"), append = FALSE)
+    
+    # name of the first climate file
+    SticsRFiles::set_usm_txt(usm_file, "fclim1", paste0(str_ns, ".", usm_years[1]), append = FALSE)
+    
+    # name of the last climate file
+    if(length(usm_years) == 2){
+      SticsRFiles::set_usm_txt(usm_file, "fclim2", paste0(str_ns, ".", usm_years[2]), append = FALSE)
+    }else{
+      # repeat same year
+      SticsRFiles::set_usm_txt(usm_file, "fclim2", paste0(str_ns, ".", usm_years[1]), append = FALSE)
+    }
+    
     
     # number of simulation years
     SticsRFiles::set_usm_txt(usm_file, "nbans", length(unique(usm_years)), append = FALSE) # hardcode for now
     
+    # number of calendar years involved in the crop cycle
+    # 1 = 1 year e.g. for spring crops, 0 = two years, e.g. for winter crops
+    culturean <- ifelse( length(unique(usm_years)) == 2, 0, 1)
+    SticsRFiles::set_usm_txt(usm_file, "culturean", culturean, append = FALSE) #hardcoding this for now, if passed as a trait from priors it breaks sensitivity analysis
+    # probably best to pass this via the json file
+    
+    # name of the plant file for main plant 
+    if(length(plt_files) < usmi){
+      # multiple usms, 1 plt file = same spp, consecutive rotations, but hacky
+      SticsRFiles::set_usm_txt(usm_file, "fplt1", basename(plt_files[[1]]), append = FALSE) 
+    }else{
+      SticsRFiles::set_usm_txt(usm_file, "fplt1", basename(plt_files[[usmi]]), append = FALSE) 
+    }
+    
+    
+    # name of the technical file for main plant
+    # does this even matter?
+    SticsRFiles::set_usm_txt(usm_file, "ftec1", "tmp_tec.xml", append = FALSE) 
+    
+    # name of the LAI forcing file for main plant (null if none)
+    SticsRFiles::set_usm_txt(usm_file, "flai1", "default.lai", append = FALSE) # hardcode for now, doesn't matter when codesimul==0
     
     # TODO: more than 1 PFTs 
     # STICS can run 2 PFTs max: main crop + intercrop
   }
-
   
 
   
