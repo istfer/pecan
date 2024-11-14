@@ -205,7 +205,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     # name code of plant in 3 letters
     # a handful of plants have to have specific codes, e.g. forages need to be 'fou' and vine needs to be 'vig'
     # but others can be anything? if not, either consider a LUT or passing via settings
-    if(names(trait.values)[pft] %in% c("frg", "wcl", "alf", "frg1", "frg2")){ # frg1/2 hack temporary
+    if(names(trait.values)[pft] %in% c("frg", "wcl", "alf")){ 
       plt_df$codeplante <- "fou"
       plt_df$codeperenne <- 2
     }else{
@@ -265,8 +265,6 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     }
     
     this_usm <- grep(names(trait.values)[pft], usmdirs)
-    # hack for now:
-    if(length(this_usm) == 0) this_usm <- pft
     sapply(this_usm, function(x){
       file.copy(file.path(rundir, "ficplt1.txt"), file.path(usmdirs[x], "ficplt1.txt"), overwrite = TRUE)
     })
@@ -325,8 +323,6 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
     SticsRFiles::convert_xml2txt(file = gen_file)
 
     this_usm <- grep(names(trait.values)[pft], usmdirs)
-    # hack for now:
-    if(length(this_usm) == 0) this_usm <- pft
     sapply(this_usm, function(x){
       file.copy(file.path(rundir, "tempopar.sti"), file.path(usmdirs[x], "tempopar.sti"), overwrite = TRUE)
     })
@@ -362,7 +358,7 @@ write.config.STICS <- function(defaults, trait.values, settings, run.id) {
       # these may or may not be modified depending on how crop cycles work in STICS
       # 'snu' is bare soil
       # fine for annual crops but need to change for perennials
-      SticsRFiles::set_param_xml(file = ini_file, param = "stade0",     values = "snu", select = "plante", select_value = "1", overwrite = TRUE)  
+      SticsRFiles::set_param_xml(file = ini_file, param = "stade0",     values = "dor", select = "plante", select_value = "1", overwrite = TRUE)  
       # when snu others are set to 0 by STICS
        
     }else if(!is.null(settings$run$inputs$poolinitcond)){
